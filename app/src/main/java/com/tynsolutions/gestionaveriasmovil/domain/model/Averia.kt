@@ -1,4 +1,10 @@
 package com.tynsolutions.gestionaveriasmovil.domain.model
 
-class Averia {
-}
+data class Averia(
+    val id: Int,
+    val titulo: String,
+    val descripcion: String,
+    val estado: String,
+    val fechaAsignacion: String,
+    val maquinaria: String
+)

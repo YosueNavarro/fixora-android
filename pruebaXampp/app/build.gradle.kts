@@ -4,13 +4,13 @@ plugins {
 }
 
 android {
-    namespace = "com.tynsolutions.gestionaveriasmovil"
+    namespace = "com.yosuenavarro.pruebaxampp"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.tynsolutions.gestionaveriasmovil"
+        applicationId = "com.yosuenavarro.pruebaxampp"
         minSdk = 23
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -33,9 +33,6 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
-    buildFeatures {
-        viewBinding = true
-    }
 }
 
 dependencies {
@@ -45,10 +42,9 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
-    implementation(libs.androidx.annotation)
-    implementation(libs.androidx.lifecycle.livedata.ktx)
-    implementation(libs.androidx.lifecycle.viewmodel.ktx)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+
+    implementation("com.android.volley:volley:1.2.1")
 }

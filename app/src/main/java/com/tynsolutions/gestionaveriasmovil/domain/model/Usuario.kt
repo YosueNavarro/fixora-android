@@ -1,4 +1,7 @@
 package com.tynsolutions.gestionaveriasmovil.domain.model
 
-class Usuario {
-}
+data class Usuario(
+    val email: String,
+    val password: String,
+    val activo: Boolean
+)
