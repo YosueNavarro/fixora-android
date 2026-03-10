@@ -29,4 +29,26 @@ class DetalleViewModel : ViewModel() {
             _averia.value = it
         }
     }
+
+    /**
+     * Procesa la aceptación de la avería asignando un timestamp local (Fase 1).
+     * @param id Identificador único de la entidad a modificar.
+     */
+    fun aceptarAveria(id: Int) {
+        // 1. Localización de la entidad en el mock data source
+        val averia = FakeDataSource.averias.find { it.id == id }
+
+        averia?.let {
+            // 2. Generación de timestamp para simular la respuesta del servidor
+            val format = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
+            val timestamp = format.format(java.util.Date())
+
+            // 3. Actualización de la colección local (Simulación de persistencia)
+            val index = FakeDataSource.averias.indexOf(it)
+            FakeDataSource.averias[index] = it.copy(fechaAceptacion = timestamp)
+
+            // 4. Emisión del nuevo estado a los observadores de la UI
+            _averia.value = FakeDataSource.averias[index]
+        }
+    }
 }

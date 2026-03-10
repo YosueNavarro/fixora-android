@@ -42,6 +42,11 @@ class DetalleAveriaFragment : Fragment() {
         // Suscripción al estado del ViewModel antes de solicitar los datos.
         setupObservers()
 
+        binding.btnAceptarAveria.setOnClickListener {
+            // Enviamos la orden de "Aceptar" al ViewModel con el ID actual [cite: 184, 185]
+            viewModel.aceptarAveria(averiaId)
+        }
+
         // Despachamos el evento de inicialización hacia la capa lógica.
         if (averiaId != -1) {
             viewModel.cargarAveria(averiaId)
@@ -76,6 +81,27 @@ class DetalleAveriaFragment : Fragment() {
         binding.tvFechaDetalle.text = "Fecha: $fechaMostrar"
 
         binding.tvDescripcionDetalle.text = averia.descripcion
+
+        // Máquina de estados para la visibilidad de componentes [cite: 178, 181]
+        when (averia.estadoAveriaCalculado) {
+            "Nueva" -> {
+                // El técnico solo puede aceptar en este estado [cite: 179]
+                binding.btnAceptarAveria.visibility = View.VISIBLE
+                binding.btnRegistrarIntervencion.visibility = View.GONE
+                binding.btnFinalizarAveria.visibility = View.GONE
+            }
+            "Recibida" -> {
+                // Una vez aceptada, habilitamos gestión de intervenciones y cierre [cite: 180, 183]
+                binding.btnAceptarAveria.visibility = View.GONE
+                binding.btnRegistrarIntervencion.visibility = View.VISIBLE
+                binding.btnCambiarEstado.visibility = View.VISIBLE
+                binding.btnFinalizarAveria.visibility = View.VISIBLE
+            }
+            "Finalizada" -> {
+                // Estado terminal: se inhabilitan las acciones de modificación [cite: 54, 202]
+                binding.layoutAcciones.visibility = View.GONE
+            }
+        }
     }
 
     override fun onDestroyView() {

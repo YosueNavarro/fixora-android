@@ -95,5 +95,53 @@
             app:layout_constraintTop_toBottomOf="@id/tvDescripcionLabel"
             tools:text="El brazo articulado pierde fuerza al levantar carga máxima. Se sospecha de una fuga en la válvula principal o manguito desgastado. Requiere revisión urgente." />
 
+        <LinearLayout
+            android:id="@+id/layoutAcciones"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:orientation="vertical"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvDescripcionDetalle"
+            tools:visibility="visible">
+
+            <Button
+                android:id="@+id/btnAceptarAveria"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:backgroundTint="#2E7D32"
+                android:text="Aceptar avería"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/btnFinalizarAveria"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:backgroundTint="#D32F2F"
+                android:text="Finalizar avería"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/btnRegistrarIntervencion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:backgroundTint="#1976D2"
+                android:text="Registrar intervención"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/btnCambiarEstado"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:backgroundTint="#FFA000"
+                android:text="Cambiar estado maquinaria"
+                android:visibility="gone" />
+        </LinearLayout>
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 </ScrollView>

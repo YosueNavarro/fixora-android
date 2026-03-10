@@ -3,7 +3,7 @@ package com.tynsolutions.gestionaveriasmovil.data.local
 import com.tynsolutions.gestionaveriasmovil.domain.model.Averia
 
 object FakeDataSource {
-    val averias = listOf(
+    val averias = mutableListOf<Averia>(
         // 1. Una avería "Nueva" (Tiene asignación, pero no aceptación)
         Averia(
             id = 1,
