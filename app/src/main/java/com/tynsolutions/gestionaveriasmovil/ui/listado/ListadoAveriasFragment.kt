@@ -98,7 +98,7 @@ class ListadoAveriasFragment : Fragment() {
         // Ejecutamos la transición y añadimos el estado al BackStack del sistema
         // para permitir el retorno natural mediante el botón hardware/gesto "Atrás".
         parentFragmentManager.beginTransaction()
-            .replace(com.tynsolutions.gestionaveriasmovil.R.id.main, fragmentDetalle)
+            .replace(com.tynsolutions.gestionaveriasmovil.R.id.main_container, fragmentDetalle)
             .addToBackStack(null)
             .commit()
     }
