@@ -4,10 +4,15 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.tynsolutions.gestionaveriasmovil.R
 import com.tynsolutions.gestionaveriasmovil.databinding.ActivityMainBinding
-import com.tynsolutions.gestionaveriasmovil.ui.listado.ListadoAveriasFragment // Asegúrate de que esta clase exista, aunque esté vacía
+import com.tynsolutions.gestionaveriasmovil.ui.listado.ListadoAveriasFragment
 import android.content.Context
 import android.content.Intent
 
+/**
+ * Host Activity principal de la aplicación.
+ * Actúa como contenedor raíz para la arquitectura Single-Activity o Multi-Fragment,
+ * orquestando la navegación primaria y funciones globales como el cierre de sesión.
+ */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
@@ -15,11 +20,13 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Inflamos la vista con ViewBinding
+        // Inicialización de la jerarquía de vistas
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Cargamos el Fragmento del listado solo la primera vez (evita duplicados al girar la pantalla)
+        // Prevención de solapamiento de Fragmentos (Fragment Overlapping).
+        // Solo inyectamos el fragmento inicial si el savedInstanceState es null
+        // (lo que significa que la Activity se crea por primera vez, no por un cambio de configuración como rotar la pantalla).
         if (savedInstanceState == null) {
             supportFragmentManager.beginTransaction()
                 .replace(R.id.main_container, ListadoAveriasFragment())
@@ -27,20 +34,26 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Invalida la sesión actual del usuario, purgando las preferencias locales
+     * y retornando la aplicación a su estado desautenticado de forma segura.
+     */
     fun cerrarSesion() {
-        // 1. Abrimos la libreta y borramos el dato de la sesión
+        // 1. Invalidación de tokens/flags en el almacenamiento persistente.
         val sharedPref = getSharedPreferences("PrefsTaller", Context.MODE_PRIVATE)
         with (sharedPref.edit()) {
             putBoolean("sesionGuardada", false)
-            apply() // Guardamos los cambios
+            apply() // Ejecución asíncrona recomendada frente a commit()
         }
 
-        // 2. Preparamos el viaje de vuelta al LoginActivity
+        // 2. Construcción de la ruta de salida.
         val intent = Intent(this, com.tynsolutions.gestionaveriasmovil.ui.login.LoginActivity::class.java)
-        // 3. Limpiamos la pila de pantallas para que no pueda volver atrás dándole al botón del móvil
+
+        // 3. Saneamiento del Backstack.
+        // FLAG_ACTIVITY_CLEAR_TASK asegura que todas las activities previas sean destruidas.
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
 
-        // 4. Saltamos y destruimos el Main
+        // 4. Ejecución del enrutamiento y destrucción del Host actual.
         startActivity(intent)
         finish()
     }

@@ -5,68 +5,108 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.tynsolutions.gestionaveriasmovil.data.local.FakeDataSource
 import com.tynsolutions.gestionaveriasmovil.databinding.FragmentListadoAveriasBinding
 
 class ListadoAveriasFragment : Fragment() {
 
+    // Implementación segura de ViewBinding. Utilizamos una backing property nullable
+    // para gestionar el ciclo de vida de la vista de forma independiente al ciclo de vida del Fragmento.
     private var _binding: FragmentListadoAveriasBinding? = null
     private val binding get() = _binding!!
 
-    // Declaramos nuestro adaptador a nivel de clase
+    // Inicialización lazy (perezosa) del ViewModel. El delegado 'viewModels()'
+    // asocia la instancia al ciclo de vida del Fragmento de forma automática.
+    private val viewModel: ListadoViewModel by viewModels()
+
     private lateinit var adapter: AveriasAdapter
 
     override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
         _binding = FragmentListadoAveriasBinding.inflate(inflater, container, false)
         return binding.root
     }
 
-    // Pro-tip: La lógica de la vista siempre va en onViewCreated, no en onCreateView
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // Inicialización de los componentes de la UI y suscripción a eventos reactivos.
         setupRecyclerView()
         setupFiltros()
+        setupObservers()
+
+        // Disparamos la carga de estado inicial.
+        viewModel.cargarAverias()
     }
 
+    /**
+     * Configura el RecyclerView: asocia el LayoutManager y establece el Adapter.
+     * Implementa la función de callback (lambda) para gestionar la navegación on-click.
+     */
     private fun setupRecyclerView() {
-        // 1. Obtenemos todas las averías de nuestra despensa local
-        val listaCompleta = FakeDataSource.averias
+        adapter = AveriasAdapter(emptyList()) { idAveriaSeleccionada ->
+            abrirDetalle(idAveriaSeleccionada)
+        }
 
-        // 2. Inicializamos el adaptador pasándole esa lista
-        adapter = AveriasAdapter(listaCompleta)
-
-        // 3. Enchufamos el adaptador a nuestro RecyclerView del XML
         binding.rvAverias.layoutManager = LinearLayoutManager(requireContext())
         binding.rvAverias.adapter = adapter
     }
 
+    /**
+     * Configura el patrón Observer para reaccionar de forma reactiva a los cambios
+     * de estado emitidos por el ViewModel.
+     */
+    private fun setupObservers() {
+        // Utilizamos 'viewLifecycleOwner' para evitar memory leaks si el Fragmento
+        // sobrevive a la destrucción de su Vista.
+        viewModel.averias.observe(viewLifecycleOwner) { listaNueva ->
+            // Inyectamos el nuevo dataset en el Adapter.
+            adapter.actualizarLista(listaNueva)
+        }
+    }
+
+    /**
+     * Mapea los eventos de la interfaz (clics) hacia intenciones en la capa lógica.
+     * La Vista actúa como entidad pasiva (Passive View) y no ejecuta lógica de negocio.
+     */
     private fun setupFiltros() {
-        // Al pulsar el botón "Nuevas", filtramos la lista y actualizamos el adaptador
         binding.btnFiltroNuevas.setOnClickListener {
-            val averiasNuevas = FakeDataSource.averias.filter { it.estado == "Nueva" }
-            adapter.actualizarLista(averiasNuevas)
+            viewModel.filtrarPorEstado("Nueva")
         }
 
-        // Al pulsar "Recibidas", hacemos lo mismo pero buscando ese estado
         binding.btnFiltroRecibidas.setOnClickListener {
-            val averiasRecibidas = FakeDataSource.averias.filter { it.estado == "Recibida" }
-            adapter.actualizarLista(averiasRecibidas)
+            viewModel.filtrarPorEstado("Recibida")
         }
-        // Configurar botón de Salir
+
         binding.btnCerrarSesion.setOnClickListener {
-            // Como este código está en un Fragment, le decimos a su "jefe" (la Activity) que ejecute la función
+            // Comunicación con la Activity Host mediante un cast seguro.
+            // Para reducir acoplamiento en proyectos mayores, se recomienda usar una interfaz
+            // delegada o un SharedViewModel a nivel de Activity.
             (requireActivity() as com.tynsolutions.gestionaveriasmovil.ui.main.MainActivity).cerrarSesion()
         }
     }
 
+    /**
+     * Ejecuta una transacción de fragmentos para navegar a la vista de detalle.
+     * * @param idAveria Identificador único de la entidad a mostrar.
+     */
+    private fun abrirDetalle(idAveria: Int) {
+        val fragmentDetalle = com.tynsolutions.gestionaveriasmovil.ui.detalle.DetalleAveriaFragment.newInstance(idAveria)
+
+        // Ejecutamos la transición y añadimos el estado al BackStack del sistema
+        // para permitir el retorno natural mediante el botón hardware/gesto "Atrás".
+        parentFragmentManager.beginTransaction()
+            .replace(com.tynsolutions.gestionaveriasmovil.R.id.main, fragmentDetalle)
+            .addToBackStack(null)
+            .commit()
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
+        // Prevención crítica de Memory Leaks: Liberamos la referencia a las vistas
+        // cuando el layout es destruido por el sistema operativo.
         _binding = null
     }
 }
