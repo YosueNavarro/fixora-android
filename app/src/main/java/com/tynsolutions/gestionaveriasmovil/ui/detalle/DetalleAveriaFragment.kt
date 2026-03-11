@@ -42,10 +42,8 @@ class DetalleAveriaFragment : Fragment() {
         // Suscripción al estado del ViewModel antes de solicitar los datos.
         setupObservers()
 
-        binding.btnAceptarAveria.setOnClickListener {
-            // Enviamos la orden de "Aceptar" al ViewModel con el ID actual [cite: 184, 185]
-            viewModel.aceptarAveria(averiaId)
-        }
+        //Centralizamos todos los eventos de interacción del usuario.
+        setupListeners()
 
         // Despachamos el evento de inicialización hacia la capa lógica.
         if (averiaId != -1) {
@@ -60,6 +58,26 @@ class DetalleAveriaFragment : Fragment() {
         // El Observer reacciona automáticamente cuando el ViewModel encuentra la avería.
         viewModel.averia.observe(viewLifecycleOwner) { averia ->
             renderizarUI(averia)
+        }
+    }
+
+    /**
+     * Mapea los eventos de la interfaz (clics) hacia intenciones en la capa lógica o de navegación.
+     */
+    private fun setupListeners() {
+        // CU03: Acción de Aceptar Avería (Lógica delegada al ViewModel)
+        binding.btnAceptarAveria.setOnClickListener {
+            viewModel.aceptarAveria(averiaId)
+        }
+
+        // CU04: Acción de Registrar Intervención (Navegación)
+        binding.btnRegistrarIntervencion.setOnClickListener {
+            val fragmentIntervencion = IntervencionFragment.newInstance(averiaId)
+
+            parentFragmentManager.beginTransaction()
+                .replace(com.tynsolutions.gestionaveriasmovil.R.id.main_container, fragmentIntervencion)
+                .addToBackStack(null)
+                .commit()
         }
     }
 
@@ -81,6 +99,25 @@ class DetalleAveriaFragment : Fragment() {
         binding.tvFechaDetalle.text = "Fecha: $fechaMostrar"
 
         binding.tvDescripcionDetalle.text = averia.descripcion
+
+        // Renderizado dinámico del historial de intervenciones
+        if (averia.intervenciones.isEmpty()) {
+            // Si no hay historial, ocultamos la sección
+            binding.separadorIntervenciones.visibility = View.GONE
+            binding.tvIntervencionesLabel.visibility = View.GONE
+            binding.tvIntervencionesLista.visibility = View.GONE
+        } else {
+            // Si hay datos, los mostramos formateados con viñetas (bullets)
+            binding.separadorIntervenciones.visibility = View.VISIBLE
+            binding.tvIntervencionesLabel.visibility = View.VISIBLE
+            binding.tvIntervencionesLista.visibility = View.VISIBLE
+
+            // Transformamos la lista en un único String unido por saltos de línea
+            val historialFormateado = averia.intervenciones.joinToString(separator = "\n\n") { comentario ->
+                "• $comentario"
+            }
+            binding.tvIntervencionesLista.text = historialFormateado
+        }
 
         // Máquina de estados para la visibilidad de componentes [cite: 178, 181]
         when (averia.estadoAveriaCalculado) {

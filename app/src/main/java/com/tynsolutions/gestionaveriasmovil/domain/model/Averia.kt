@@ -9,7 +9,14 @@ data class Averia(
     val fechaInforme: String,
     val fechaAsignacion: String?, // Son con '?' porque pueden ser nulas (aún no ha pasado)
     val fechaAceptacion: String?,
-    val fechaFinalizacion: String?
+    val fechaFinalizacion: String?,
+
+    /*
+     Solución momentanea (fase 1) para las intervenciones,
+     En BBDD es un Varchar, habrá que buscar una solución para la conversión
+     o convertir este campo a String.
+    */
+    val intervenciones: MutableList<String> = mutableListOf()
 ) {
     // Magia de Kotlin: Calculamos el estado de la avería sobre la marcha para la interfaz
     val estadoAveriaCalculado: String

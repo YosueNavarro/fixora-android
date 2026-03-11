@@ -63,7 +63,7 @@
             tools:text="Asignada el: 10/03/2026" />
 
         <View
-            android:id="@+id/separador"
+            android:id="@+id/separadorDescripcion"
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:layout_marginTop="24dp"
@@ -80,7 +80,7 @@
             android:textSize="16sp"
             android:textStyle="bold"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/separador" />
+            app:layout_constraintTop_toBottomOf="@id/separadorDescripcion" />
 
         <TextView
             android:id="@+id/tvDescripcionDetalle"
@@ -95,6 +95,41 @@
             app:layout_constraintTop_toBottomOf="@id/tvDescripcionLabel"
             tools:text="El brazo articulado pierde fuerza al levantar carga máxima. Se sospecha de una fuga en la válvula principal o manguito desgastado. Requiere revisión urgente." />
 
+        <View
+            android:id="@+id/separadorIntervenciones"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="24dp"
+            android:background="#E0E0E0"
+            app:layout_constraintTop_toBottomOf="@id/tvDescripcionDetalle" />
+
+        <TextView
+            android:id="@+id/tvIntervencionesLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Historial de Intervenciones:"
+            android:textColor="#1A1A1A"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/separadorIntervenciones"
+            tools:visibility="visible" />
+
+        <TextView
+            android:id="@+id/tvIntervencionesLista"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:lineSpacingExtra="4dp"
+            android:textColor="#424242"
+            android:textSize="15sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvIntervencionesLabel"
+            tools:text="• Se revisó la válvula.\n• Se cambió el aceite."
+            tools:visibility="visible" />
+
         <LinearLayout
             android:id="@+id/layoutAcciones"
             android:layout_width="0dp"
@@ -104,7 +139,7 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvDescripcionDetalle"
+            app:layout_constraintTop_toBottomOf="@id/tvIntervencionesLista"
             tools:visibility="visible">
 
             <Button
