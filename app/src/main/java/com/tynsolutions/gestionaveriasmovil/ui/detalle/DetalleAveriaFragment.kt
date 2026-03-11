@@ -7,6 +7,8 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import com.tynsolutions.gestionaveriasmovil.databinding.FragmentDetalleAveriaBinding
+import com.tynsolutions.gestionaveriasmovil.ui.detalle.estado.CambiarEstadoFragment
+import com.tynsolutions.gestionaveriasmovil.ui.detalle.intervencion.IntervencionFragment
 
 class DetalleAveriaFragment : Fragment() {
 
@@ -76,6 +78,18 @@ class DetalleAveriaFragment : Fragment() {
 
             parentFragmentManager.beginTransaction()
                 .replace(com.tynsolutions.gestionaveriasmovil.R.id.main_container, fragmentIntervencion)
+                .addToBackStack(null)
+                .commit()
+        }
+
+        // CU05: Acción de Cambiar Estado de la Maquinaria (Navegación)
+        binding.btnCambiarEstado.setOnClickListener {
+            // Instanciamos el fragmento destino inyectando el ID de la avería
+            val fragmentEstado = CambiarEstadoFragment.newInstance(averiaId)
+
+            // Ejecutamos la transacción para cambiar de pantalla
+            parentFragmentManager.beginTransaction()
+                .replace(com.tynsolutions.gestionaveriasmovil.R.id.main_container, fragmentEstado)
                 .addToBackStack(null)
                 .commit()
         }

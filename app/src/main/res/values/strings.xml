@@ -11,4 +11,10 @@
     <string name="login_failed">"Login failed"</string>
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
+
+    <string name="titulo_cambiar_estado">Actualizar Estado de Máquina</string>
+    <string name="estado_averiada">Averiada</string>
+    <string name="estado_mantenimiento">En mantenimiento</string>
+    <string name="estado_operativa">Operativa</string>
+    <string name="btn_actualizar_estado">Actualizar Estado</string>
 </resources>
