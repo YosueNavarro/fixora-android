@@ -16,5 +16,8 @@
     <string name="estado_averiada">Averiada</string>
     <string name="estado_mantenimiento">En mantenimiento</string>
     <string name="estado_operativa">Operativa</string>
+    <string name="estado_fuera_servicio">Fuera de servicio</string>
     <string name="btn_actualizar_estado">Actualizar Estado</string>
+
+    <string name="tab_finalizadas">Finalizadas</string>
 </resources>

@@ -48,6 +48,14 @@
             android:padding="12dp" />
 
         <RadioButton
+            android:id="@+id/rbFueraServicio"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/estado_fuera_servicio"
+            android:textSize="16sp"
+            android:padding="12dp" />
+
+        <RadioButton
             android:id="@+id/rbOperativa"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

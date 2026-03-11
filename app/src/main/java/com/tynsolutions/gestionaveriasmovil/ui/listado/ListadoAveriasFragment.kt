@@ -80,10 +80,11 @@ class ListadoAveriasFragment : Fragment() {
             viewModel.filtrarPorEstado("Recibida")
         }
 
+        binding.btnFiltroFinalizadas.setOnClickListener {
+            viewModel.filtrarPorEstado("Finalizada")
+        }
+
         binding.btnCerrarSesion.setOnClickListener {
-            // Comunicación con la Activity Host mediante un cast seguro.
-            // Para reducir acoplamiento en proyectos mayores, se recomienda usar una interfaz
-            // delegada o un SharedViewModel a nivel de Activity.
             (requireActivity() as com.tynsolutions.gestionaveriasmovil.ui.main.MainActivity).cerrarSesion()
         }
     }
@@ -108,5 +109,16 @@ class ListadoAveriasFragment : Fragment() {
         // Prevención crítica de Memory Leaks: Liberamos la referencia a las vistas
         // cuando el layout es destruido por el sistema operativo.
         _binding = null
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Al volver del detalle, refrescamos la carga para que los cambios
+        // en los estados de las averías se reflejen en los filtros.
+
+        // Aquí puedes elegir qué filtro dejar por defecto al volver.
+        // Lo ideal es cargar las "Nuevas" o mantener el último filtro,
+        // pero para empezar, cargar todas o las nuevas es lo más seguro:
+        viewModel.filtrarPorEstado("Nueva")
     }
 }

@@ -33,6 +33,15 @@
             android:textAllCaps="false" />
 
         <Button
+            android:id="@+id/btnFiltroFinalizadas"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Finalizadas"
+            android:textAllCaps="false" />
+
+        <Button
             android:id="@+id/btnCerrarSesion"
             style="@style/Widget.MaterialComponents.Button.TextButton"
             android:layout_width="wrap_content"

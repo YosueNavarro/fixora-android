@@ -151,15 +151,6 @@
                 android:visibility="gone" />
 
             <Button
-                android:id="@+id/btnFinalizarAveria"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:backgroundTint="#D32F2F"
-                android:text="Finalizar avería"
-                android:visibility="gone" />
-
-            <Button
                 android:id="@+id/btnRegistrarIntervencion"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -176,6 +167,16 @@
                 android:backgroundTint="#FFA000"
                 android:text="Cambiar estado maquinaria"
                 android:visibility="gone" />
+
+            <Button
+                android:id="@+id/btnFinalizarAveria"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:backgroundTint="#D32F2F"
+                android:text="Finalizar avería"
+                android:visibility="gone" />
+
         </LinearLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>

@@ -51,4 +51,31 @@ class DetalleViewModel : ViewModel() {
             _averia.value = FakeDataSource.averias[index]
         }
     }
+
+    /**
+     * CU06: Finalizar Avería.
+     * Cambia el estado de la avería a un estado terminal ("Finalizada").
+     * Esto simula la lógica del Bloque 7.3 en la Fase 1.
+     *
+     * @param averiaId El identificador de la avería que se va a cerrar.
+     */
+    fun finalizarAveria(averiaId: Int) {
+        val averia = FakeDataSource.averias.find { it.id == averiaId }
+
+        averia?.let {
+            val index = FakeDataSource.averias.indexOf(it)
+
+            // Obtenemos la fecha actual formateada (o como la use tu modelo, ej: String o Date)
+            val fechaHoy = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+
+            // IMPORTANTE: Al poner valor a fechaFinalizacion, el estado cambia automáticamente
+            val averiaActualizada = it.copy(fechaFinalizacion = fechaHoy)
+
+            FakeDataSource.averias[index] = averiaActualizada
+
+            // Notificamos a la UI. El Observer recibirá el objeto y al leer
+            // 'estadoAveriaCalculado' verá que ahora es "Finalizada".
+            _averia.value = averiaActualizada
+        }
+    }
 }

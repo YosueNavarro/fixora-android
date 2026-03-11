@@ -93,6 +93,42 @@ class DetalleAveriaFragment : Fragment() {
                 .addToBackStack(null)
                 .commit()
         }
+
+        // CU06: Acción de Finalizar Avería
+        binding.btnFinalizarAveria.setOnClickListener {
+            mostrarDialogoFinalizacion()
+        }
+    }
+
+    /**
+     * CU06: Finalizar Avería.
+     * Valida instantáneamente el estado de la máquina antes de permitir el cierre de la avería.
+     */
+    private fun mostrarDialogoFinalizacion() {
+        val averiaActual = viewModel.averia.value
+        val estadoMaquinaria = averiaActual?.estadoMaquinaria // "Averiada", "Operativa", etc.
+
+        // 1. VALIDACIÓN INSTANTÁNEA
+        // Si la máquina sigue "Averiada" o "En mantenimiento", no dejamos finalizar
+        if (estadoMaquinaria != "Operativa" && estadoMaquinaria != "Fuera de servicio") {
+            android.app.AlertDialog.Builder(requireContext())
+                .setTitle("Atención: Máquina en mal estado")
+                .setMessage("No puedes finalizar la avería si la máquina está: $estadoMaquinaria.\n\n" +
+                        "Primero debes marcarla como 'Operativa' o 'Fuera de servicio' en la sección anterior.")
+                .setPositiveButton("Entendido", null)
+                .show()
+        }
+        else {
+            // 2. SI LA VALIDACIÓN PASA: Pedimos confirmación para cerrar la gestión
+            android.app.AlertDialog.Builder(requireContext())
+                .setTitle("Finalizar Gestión")
+                .setMessage("¿Confirmas que los trabajos han terminado? La avería se archivará como Finalizada.")
+                .setPositiveButton("Sí, finalizar") { _, _ ->
+                    viewModel.finalizarAveria(averiaId)
+                }
+                .setNegativeButton("Cancelar", null)
+                .show()
+        }
     }
 
     /**
@@ -131,25 +167,27 @@ class DetalleAveriaFragment : Fragment() {
                 "• $comentario"
             }
             binding.tvIntervencionesLista.text = historialFormateado
+
+
         }
 
-        // Máquina de estados para la visibilidad de componentes [cite: 178, 181]
+        // Máquina de estados para la visibilidad de componentes
         when (averia.estadoAveriaCalculado) {
             "Nueva" -> {
-                // El técnico solo puede aceptar en este estado [cite: 179]
+                // El técnico solo puede aceptar en este estado
                 binding.btnAceptarAveria.visibility = View.VISIBLE
                 binding.btnRegistrarIntervencion.visibility = View.GONE
                 binding.btnFinalizarAveria.visibility = View.GONE
             }
             "Recibida" -> {
-                // Una vez aceptada, habilitamos gestión de intervenciones y cierre [cite: 180, 183]
+                // Una vez aceptada, habilitamos gestión de intervenciones y cierre
                 binding.btnAceptarAveria.visibility = View.GONE
                 binding.btnRegistrarIntervencion.visibility = View.VISIBLE
                 binding.btnCambiarEstado.visibility = View.VISIBLE
                 binding.btnFinalizarAveria.visibility = View.VISIBLE
             }
             "Finalizada" -> {
-                // Estado terminal: se inhabilitan las acciones de modificación [cite: 54, 202]
+                // Estado terminal: se inhabilitan las acciones de modificación
                 binding.layoutAcciones.visibility = View.GONE
             }
         }

@@ -65,6 +65,7 @@ class CambiarEstadoFragment : Fragment() {
             when (it.estadoMaquinaria) {
                 "Averiada" -> binding.rbAveriada.isChecked = true
                 "En mantenimiento" -> binding.rbMantenimiento.isChecked = true
+                "Fuera de servicio" -> binding.rbFueraServicio.isChecked = true
                 "Operativa" -> binding.rbOperativa.isChecked = true
             }
         }
