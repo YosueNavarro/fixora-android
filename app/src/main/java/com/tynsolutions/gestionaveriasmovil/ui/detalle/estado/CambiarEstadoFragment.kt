@@ -75,6 +75,11 @@ class CambiarEstadoFragment : Fragment() {
      * Registra los manejadores de eventos (Event Handlers) para capturar las intenciones del usuario.
      */
     private fun setupListeners() {
+        binding.btnVolver.setOnClickListener {
+            // Esto saca el fragmento actual de la pila y vuelve a la lista
+            parentFragmentManager.popBackStack()
+        }
+
         binding.btnGuardarEstadoMaquina.setOnClickListener {
             val selectedId = binding.rgEstadoMaquina.checkedRadioButtonId
 

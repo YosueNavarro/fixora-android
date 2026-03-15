@@ -146,7 +146,7 @@ class DetalleAveriaFragment : Fragment() {
 
         // Lógica de presentación de fechas basada en nullabilidad.
         val fechaMostrar = averia.fechaAsignacion ?: averia.fechaInforme
-        binding.tvFechaDetalle.text = "Fecha: $fechaMostrar"
+        binding.tvFechaDetalle.text = "Fecha de asignación: $fechaMostrar"
 
         binding.tvDescripcionDetalle.text = averia.descripcion
 
@@ -174,22 +174,39 @@ class DetalleAveriaFragment : Fragment() {
         // Máquina de estados para la visibilidad de componentes
         when (averia.estadoAveriaCalculado) {
             "Nueva" -> {
-                // El técnico solo puede aceptar en este estado
+                // Acciones
                 binding.btnAceptarAveria.visibility = View.VISIBLE
                 binding.btnRegistrarIntervencion.visibility = View.GONE
                 binding.btnFinalizarAveria.visibility = View.GONE
+
+                // Colores y Textos Fixora
+                binding.tvEstadoDetalle.setTextColor(android.graphics.Color.parseColor("#3A75B5"))
+                binding.tvEstadoDetalle.setBackgroundColor(android.graphics.Color.parseColor("#EDF3FB"))
             }
-            "Recibida" -> {
-                // Una vez aceptada, habilitamos gestión de intervenciones y cierre
+            "Recibida", "En proceso" -> {
+                // Acciones
                 binding.btnAceptarAveria.visibility = View.GONE
                 binding.btnRegistrarIntervencion.visibility = View.VISIBLE
                 binding.btnCambiarEstado.visibility = View.VISIBLE
                 binding.btnFinalizarAveria.visibility = View.VISIBLE
+
+                // Colores azul (En curso)
+                binding.tvEstadoDetalle.setTextColor(android.graphics.Color.parseColor("#512DA8"))
+                binding.tvEstadoDetalle.setBackgroundColor(android.graphics.Color.parseColor("#EDE7F6"))
             }
             "Finalizada" -> {
-                // Estado terminal: se inhabilitan las acciones de modificación
+                // Acciones
                 binding.layoutAcciones.visibility = View.GONE
+
+                // Colores Verde (Éxito/Cerrado)
+                binding.tvEstadoDetalle.setTextColor(android.graphics.Color.parseColor("#2E7D32"))
+                binding.tvEstadoDetalle.setBackgroundColor(android.graphics.Color.parseColor("#E8F5E9"))
             }
+        }
+
+        binding.btnVolver.setOnClickListener {
+            // Esto saca el fragmento actual de la pila y vuelve a la lista
+            parentFragmentManager.popBackStack()
         }
     }
 

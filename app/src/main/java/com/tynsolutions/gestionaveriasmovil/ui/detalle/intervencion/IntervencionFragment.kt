@@ -55,6 +55,11 @@ class IntervencionFragment : Fragment() {
      * Suscribe las interacciones del usuario (clics) a las acciones correspondientes.
      */
     private fun setupListeners() {
+        binding.btnVolver.setOnClickListener {
+            // Esto saca el fragmento actual de la pila y vuelve a la lista
+            parentFragmentManager.popBackStack()
+        }
+
         binding.btnGuardarIntervencion.setOnClickListener {
             // Sanitización de la entrada del usuario (eliminación de espacios residuales)
             val comentario = binding.etDescripcionIntervencion.text.toString().trim()
