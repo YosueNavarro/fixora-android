@@ -3,13 +3,19 @@ package com.tynsolutions.gestionaveriasmovil.ui.login
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import com.tynsolutions.gestionaveriasmovil.domain.model.Usuario
+import androidx.lifecycle.viewModelScope
+import com.tynsolutions.gestionaveriasmovil.data.repository.AuthRepository
+import kotlinx.coroutines.launch
+import android.content.Context
+import androidx.lifecycle.ViewModelProvider
+import com.tynsolutions.gestionaveriasmovil.data.network.ApiClient
+import com.tynsolutions.gestionaveriasmovil.data.network.SessionManager
 
 /**
  * Capa de presentación (ViewModel) encargada de procesar las reglas de negocio
  * del flujo de autenticación y exponer el estado reactivo a la Vista.
  */
-class LoginViewModel : ViewModel() {
+class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
 
     // --- Backing Properties ---
     // Patrón arquitectónico para encapsular la mutabilidad del estado.
@@ -20,8 +26,13 @@ class LoginViewModel : ViewModel() {
     private val _mensajeError = MutableLiveData<String>()
     val mensajeError: LiveData<String> get() = _mensajeError
 
+    // Nuevo estado reactivo para gestionar el feedback visual durante la latencia de red.
+    private val _cargando = MutableLiveData<Boolean>()
+    val cargando: LiveData<Boolean> get() = _cargando
+
     /**
-     * Valida las credenciales ingresadas aplicando reglas de negocio locales o remotas.
+     * Valida las credenciales ingresadas aplicando reglas de negocio locales y
+     * delegando la autenticación remota al repositorio.
      *
      * @param emailInput Correo electrónico ingresado por el usuario.
      * @param passwordInput Contraseña ingresada por el usuario.
@@ -33,28 +44,47 @@ class LoginViewModel : ViewModel() {
             return
         }
 
-        // 2. Mocking de Data Source (Fase 1).
-        // Nota técnica: En futuras iteraciones, esto será sustituido por un UseCase o Repository.
-        val usuarioSimulado = Usuario(
-            email = "tecnico@taller.com",
-            password = "1234",
-            activo = true
-        )
+        // 2. Transición a estado de carga. La UI debe bloquear interacciones repetidas.
+        _cargando.value = true
 
-        // 3. Evaluación de reglas de negocio cruzadas (Credenciales + Estado de la cuenta).
-        if (emailInput == usuarioSimulado.email && passwordInput == usuarioSimulado.password) {
+        // 3. Delegación al Repositorio (Fase 2 - Conexión real a la API).
+        // viewModelScope garantiza que la corrutina se cancele automáticamente si el ViewModel se destruye,
+        // previniendo fugas de memoria (Memory Leaks) y crashes por respuestas tardías.
+        viewModelScope.launch {
+            val resultado = repository.realizarLogin(emailInput, passwordInput)
 
-            if (!usuarioSimulado.activo) {
-                // Notificación de estado denegado (Regla de negocio: cuenta inactiva).
-                _mensajeError.value = "Usuario inactivo"
-            } else {
-                // Emisión de evento de éxito.
-                _loginExitoso.value = true
+            // 4. Evaluación del resultado devuelto por la capa de red y seguridad.
+            resultado.fold(
+                onSuccess = {
+                    // El SessionManager ya ha almacenado el token JWT de forma segura.
+                    _cargando.value = false
+                    _loginExitoso.value = true
+                },
+                onFailure = { excepcion ->
+                    // Emisión de evento de fallo con el detalle proporcionado por el servidor o la red.
+                    _cargando.value = false
+                    _mensajeError.value = excepcion.message ?: "Error desconocido al contactar con el servidor"
+                }
+            )
+        }
+    }
+
+    /**
+     * Patrón Factory para inyectar las dependencias de red y seguridad
+     * en el LoginViewModel en el momento de su creación.
+     */
+    class LoginViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(LoginViewModel::class.java)) {
+                // Ensamblamos la cadena de dependencias
+                val sessionManager = SessionManager(context)
+                val apiService = ApiClient.getApiService(sessionManager)
+                val repository = AuthRepository(apiService, sessionManager)
+
+                @Suppress("UNCHECKED_CAST")
+                return LoginViewModel(repository) as T
             }
-
-        } else {
-            // Emisión de evento de fallo de autenticación.
-            _mensajeError.value = "Usuario o contraseña incorrectos"
+            throw IllegalArgumentException("Clase ViewModel desconocida")
         }
     }
 }

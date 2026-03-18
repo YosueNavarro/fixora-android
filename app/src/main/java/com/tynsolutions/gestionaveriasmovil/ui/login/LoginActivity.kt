@@ -5,10 +5,11 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.ViewModelProvider
+import com.tynsolutions.gestionaveriasmovil.data.network.SessionManager
 import com.tynsolutions.gestionaveriasmovil.databinding.ActivityLoginBinding
 import com.tynsolutions.gestionaveriasmovil.ui.main.MainActivity
 
@@ -19,8 +20,8 @@ import com.tynsolutions.gestionaveriasmovil.ui.main.MainActivity
  */
 class LoginActivity : AppCompatActivity() {
 
-    // Inicialización Lazy del ViewModel ligado al ciclo de vida de la Activity.
-    private val viewModel: LoginViewModel by viewModels()
+    // Inicialización del ViewModel usando nuestro Factory personalizado para inyectar la capa de red.
+    private lateinit var viewModel: LoginViewModel
 
     // ViewBinding para acceso seguro (Null-safe y Type-safe) a la jerarquía de vistas.
     private lateinit var binding: ActivityLoginBinding
@@ -41,16 +42,25 @@ class LoginActivity : AppCompatActivity() {
             insets
         }
 
-        // --- Verificación de Persistencia de Sesión ---
-        // Accedemos al almacenamiento local cifrado (o plano vía SharedPreferences)
-        // para evaluar si existe un token o flag de sesión activa.
-        val sharedPref = getSharedPreferences("PrefsTaller", Context.MODE_PRIVATE)
-        val estaLogueado = sharedPref.getBoolean("sesionGuardada", false)
+        // --- 1. Inicialización del ViewModel con Factory ---
+        val factory = LoginViewModel.LoginViewModelFactory(applicationContext)
+        viewModel = ViewModelProvider(this, factory)[LoginViewModel::class.java]
 
-        if (estaLogueado) {
-            // Bypass del flujo de autenticación si la sesión ya existe.
+        // --- 2. Verificación de Persistencia de Sesión ---
+        // Evaluamos si el usuario marcó "Recordar" Y si tenemos un token JWT criptográfico válido.
+        val sharedPref = getSharedPreferences("PrefsTaller", Context.MODE_PRIVATE)
+        val quiereRecordarSesion = sharedPref.getBoolean("sesionGuardada", false)
+
+        val sessionManager = SessionManager(applicationContext)
+        val tokenExistente = sessionManager.fetchAuthToken()
+
+        if (quiereRecordarSesion && !tokenExistente.isNullOrEmpty()) {
+            // Bypass del flujo de autenticación si la sesión existe y es válida.
             navigateToMain(guardarSesion = false)
             return // Prevención de carga innecesaria de listeners/observers.
+        } else if (!quiereRecordarSesion) {
+            // Por seguridad, si no quiso recordar sesión, purgamos cualquier token residual.
+            sessionManager.clearSession()
         }
 
         // Inicialización reactiva si requerimos autenticación manual.
@@ -75,9 +85,21 @@ class LoginActivity : AppCompatActivity() {
      * Establece las suscripciones (Observers) a los flujos de datos emitidos por el ViewModel.
      */
     private fun setupObservers() {
+        // Suscripción al estado de carga (Latencia de red XAMPP/API)
+        viewModel.cargando.observe(this) { isLoading ->
+            // Bloqueamos la UI para evitar peticiones concurrentes y saturación del servidor
+            binding.btnLogin.isEnabled = !isLoading
+            binding.btnLogin.text = if (isLoading) "Conectando..." else "Acceder"
+
+            // Si tienes un ProgressBar en el XML, puedes mostrarlo aquí:
+            // binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+        }
+
         // Suscripción a eventos de error para renderizar feedback (Toast/Snackbar).
         viewModel.mensajeError.observe(this) { errorMessage ->
-            Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show()
+            if (errorMessage.isNotEmpty()) {
+                Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show()
+            }
         }
 
         // Suscripción al evento de éxito para disparar la navegación transversal.
@@ -97,6 +119,7 @@ class LoginActivity : AppCompatActivity() {
     private fun navigateToMain(guardarSesion: Boolean) {
 
         // Persistencia de la decisión del usuario (Keep me logged in).
+        // Nota: El Token JWT ya fue guardado en el SessionManager por el AuthRepository.
         if (guardarSesion && binding.cbRecordar.isChecked) {
             val sharedPref = getSharedPreferences("PrefsTaller", Context.MODE_PRIVATE)
             with (sharedPref.edit()) {

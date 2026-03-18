@@ -52,4 +52,15 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     implementation("androidx.fragment:fragment-ktx:1.8.9")
+
+    // --- RED Y COMUNICACIÓN API (Retrofit + OkHttp) ---
+    // Retrofit: Cliente HTTP principal y type-safe para Android
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    // Convertidor Gson: Transforma automáticamente los JSON del servidor a Data Classes de Kotlin
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+
+    // OkHttp: Cliente subyacente. Fundamental para configurar tiempos de espera y seguridad
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // Interceptor de OkHttp: Útil para ver las peticiones/respuestas en el Logcat durante el desarrollo
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 }
