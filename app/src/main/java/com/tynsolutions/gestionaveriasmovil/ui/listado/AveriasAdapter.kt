@@ -12,7 +12,7 @@ import com.tynsolutions.gestionaveriasmovil.databinding.ItemAveriaBinding
  */
 class AveriasAdapter(
     private var listaAverias: List<AveriaItemDTO> = emptyList(),
-    private val onAveriaClick: (Int) -> Unit
+    private val onAveriaClick: (AveriaItemDTO) -> Unit
 ) : RecyclerView.Adapter<AveriasAdapter.AveriaViewHolder>() {
 
     inner class AveriaViewHolder(private val binding: ItemAveriaBinding) : RecyclerView.ViewHolder(binding.root) {
@@ -40,7 +40,7 @@ class AveriasAdapter(
 
             // Routing del clic
             binding.root.setOnClickListener {
-                onAveriaClick(averia.id)
+                onAveriaClick(averia)
             }
         }
     }

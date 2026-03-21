@@ -53,8 +53,12 @@ class ListadoAveriasFragment : Fragment() {
     }
 
     private fun setupRecyclerView() {
-        adapter = AveriasAdapter { idAveriaSeleccionada ->
-            abrirDetalle(idAveriaSeleccionada)
+        adapter = AveriasAdapter { averiaSeleccionada ->
+            // 1. Guardamos el objeto completo en nuestra caché temporal
+            com.tynsolutions.gestionaveriasmovil.data.local.AveriaCache.averiaSeleccionada = averiaSeleccionada
+
+            // 2. Abrimos la pantalla
+            abrirDetalle()
         }
         binding.rvAverias.layoutManager = LinearLayoutManager(requireContext())
         binding.rvAverias.adapter = adapter
@@ -93,8 +97,8 @@ class ListadoAveriasFragment : Fragment() {
         }
     }
 
-    private fun abrirDetalle(idAveria: Int) {
-        val fragmentDetalle = com.tynsolutions.gestionaveriasmovil.ui.detalle.DetalleAveriaFragment.newInstance(idAveria)
+    private fun abrirDetalle() {
+        val fragmentDetalle = com.tynsolutions.gestionaveriasmovil.ui.detalle.DetalleAveriaFragment()
         parentFragmentManager.beginTransaction()
             .replace(com.tynsolutions.gestionaveriasmovil.R.id.main_container, fragmentDetalle)
             .addToBackStack(null)

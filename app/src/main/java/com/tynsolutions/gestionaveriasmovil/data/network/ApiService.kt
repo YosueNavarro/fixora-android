@@ -52,30 +52,25 @@ interface ApiService {
      */
     @PUT("averias/{id}/aceptar")
     suspend fun aceptarAveria(
-        @Header("Authorization") token: String,
-        @Path("id") idAveria: Int,
-        @Body requestBody: Map<String, String> = emptyMap()
-    ): Response<AveriaItemDTO>
+        @Path("id") idAveria: Int // <-- SOLO el ID, nada de Strings o Tokens
+    ): Response<Any>
 
     /**
      * Registrar intervención (cambio en descripción de avería).
      */
     @PUT("averias/{id}/intervenciones")
     suspend fun registrarIntervencion(
-        @Header("Authorization") token: String,
         @Path("id") idAveria: Int,
-        @Body request: IntervencionRequest
-    ): Response<AveriaItemDTO>
+        @Body request: com.tynsolutions.gestionaveriasmovil.data.network.dto.IntervencionRequestDTO
+    ): Response<Any>
 
     /**
      * Finalizar una avería.
      */
     @PUT("averias/{id}/finalizar")
     suspend fun finalizarAveria(
-        @Header("Authorization") token: String,
-        @Path("id") idAveria: Int,
-        @Body requestBody: Map<String, String> = emptyMap()
-    ): Response<AveriaItemDTO>
+        @Path("id") idAveria: Int
+    ): Response<Any>
 
     /**
      * Cambiar estado de maquinaria a "fuera de servicio" u "operativa".
