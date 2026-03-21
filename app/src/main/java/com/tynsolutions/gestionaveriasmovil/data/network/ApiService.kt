@@ -5,80 +5,84 @@ import retrofit2.Response
 import retrofit2.http.*
 
 /**
- * Contrato de la API REST para la gestión de averías.
- * Utiliza Corrutinas (suspend) para ejecutar las peticiones en hilos secundarios
- * sin bloquear la interfaz de usuario. Envuelve los retornos en Response<T> para
- * poder gestionar profesionalmente los códigos HTTP (200, 401, 403, 500).
+ * Contrato de la API REST para la gestión de averías de TYN Solutions.
+ * Utiliza Corrutinas (suspend) para concurrencia asíncrona segura.
+ * * ATENCIÓN: Todos los endpoints privados requieren inyección explícita del token JWT
+ * mediante la cabecera 'Authorization' para garantizar la seguridad del sistema.
  */
 interface ApiService {
 
     // ==========================================
-    // 1. AUTENTICACIÓN
+    // 1. AUTENTICACIÓN (ENDPOINT PÚBLICO)
     // ==========================================
 
     @POST("auth/login")
     suspend fun login(@Body request: LoginRequest): Response<LoginResponse>
 
     // ==========================================
-    // 2. OBTENCIÓN DE DATOS (GET)
+    // 2. OBTENCIÓN DE DATOS (ENDPOINTS PRIVADOS - GET)
     // ==========================================
 
     /**
-     * Obtiene las averías del técnico.
-     * El filtro se envía como parámetro de consulta en la URL (?filtro=nuevas)
+     * Obtiene las averías del técnico asignado.
+     * @param token Cadena JWT con el formato "Bearer <token>".
+     * @param idTecnico Identificador único del técnico en BD.
+     * @param filtroTipoLista Filtro opcional para la consulta SQL del backend.
      */
-    @GET("/tecnicos/{id}/averias")
+    @GET("tecnicos/{id}/averias")
     suspend fun getAveriasTecnico(
         @Path("id") idTecnico: Int,
-        @Query("filtro") filtroTipoLista: String
-    ): Response<List<AveriaResponse>>
+        @Query("tipo") tipoLista: String? = null
+    ): Response<AveriaTecnicoResponse>
 
     /**
      * Obtiene los códigos y descripciones de los estados de situación posibles.
      */
-    @GET("/estado/situacion")
-    suspend fun getEstadosSituacion(): Response<List<EstadoSituacionResponse>>
+    @GET("estado/situacion")
+    suspend fun getEstadosSituacion(
+        @Header("Authorization") token: String
+    ): Response<List<EstadoSituacionResponse>>
 
     // ==========================================
-    // 3. MODIFICACIÓN DE DATOS (PUT)
+    // 3. MODIFICACIÓN DE DATOS (ENDPOINTS PRIVADOS - PUT)
     // ==========================================
 
     /**
      * Aceptar una avería asignada.
-     * La lógica de actualización de timestamp ocurre en el servidor.
-     * Enviamos un mapa vacío por si el framework del servidor exige un cuerpo (body) en las peticiones PUT.
      */
-    @PUT("/averias/{id}/aceptar")
+    @PUT("averias/{id}/aceptar")
     suspend fun aceptarAveria(
+        @Header("Authorization") token: String,
         @Path("id") idAveria: Int,
         @Body requestBody: Map<String, String> = emptyMap()
-    ): Response<AveriaResponse>
+    ): Response<AveriaItemDTO>
 
     /**
      * Registrar intervención (cambio en descripción de avería).
      */
-    @PUT("/averias/{id}/intervenciones")
+    @PUT("averias/{id}/intervenciones")
     suspend fun registrarIntervencion(
+        @Header("Authorization") token: String,
         @Path("id") idAveria: Int,
         @Body request: IntervencionRequest
-    ): Response<AveriaResponse>
+    ): Response<AveriaItemDTO>
 
     /**
      * Finalizar una avería.
-     * El servidor aplica el timestamp automáticamente.
      */
-    @PUT("/averias/{id}/finalizar")
+    @PUT("averias/{id}/finalizar")
     suspend fun finalizarAveria(
+        @Header("Authorization") token: String,
         @Path("id") idAveria: Int,
         @Body requestBody: Map<String, String> = emptyMap()
-    ): Response<AveriaResponse>
+    ): Response<AveriaItemDTO>
 
     /**
      * Cambiar estado de maquinaria a "fuera de servicio" u "operativa".
-     * Devuelve un JSON genérico con un mensaje de confirmación.
      */
-    @PUT("/maquinaria/{id}/estado")
+    @PUT("maquinaria/{id}/estado")
     suspend fun cambiarEstadoMaquina(
+        @Header("Authorization") token: String,
         @Path("id") idMaquinaria: Int,
         @Body request: CambiarEstadoMaquinaRequest
     ): Response<Map<String, String>>

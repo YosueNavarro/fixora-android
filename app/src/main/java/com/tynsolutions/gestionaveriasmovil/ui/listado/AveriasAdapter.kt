@@ -3,94 +3,60 @@ package com.tynsolutions.gestionaveriasmovil.ui.listado
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
+import com.tynsolutions.gestionaveriasmovil.data.network.dto.AveriaItemDTO
 import com.tynsolutions.gestionaveriasmovil.databinding.ItemAveriaBinding
-import com.tynsolutions.gestionaveriasmovil.domain.model.Averia
 
 /**
  * Adaptador para el RecyclerView del listado de averías.
- * Implementa el patrón Adapter para actuar como puente entre la colección de datos (Domain)
- * y las vistas reciclables (UI).
- *
- * @property listaAverias Dataset inicial que alimentará el listado.
- * @property onAveriaClick Función de orden superior (Higher-Order Function) que delega
- * la responsabilidad del evento click a la capa superior (Fragmento).
+ * Consume directamente el DTO de la API para optimizar el rendimiento y evitar mapeos innecesarios.
  */
 class AveriasAdapter(
-    private var listaAverias: List<Averia>,
+    private var listaAverias: List<AveriaItemDTO> = emptyList(),
     private val onAveriaClick: (Int) -> Unit
 ) : RecyclerView.Adapter<AveriasAdapter.AveriaViewHolder>() {
 
-    /**
-     * ViewHolder interno que almacena y recicla las referencias a las vistas de un ítem.
-     * Al usar ViewBinding garantizamos Null Safety y Type Safety en la UI.
-     */
     inner class AveriaViewHolder(private val binding: ItemAveriaBinding) : RecyclerView.ViewHolder(binding.root) {
 
-        /**
-         * Función de renderizado (Bind). Mapea los atributos de la entidad de dominio
-         * hacia los componentes visuales del layout.
-         *
-         * @param averia Instancia del modelo de dominio a representar.
-         */
-        fun bind(averia: Averia) {
-            // Inyección directa de datos simples
-            binding.tvTituloAveria.text = averia.titulo
+        fun bind(averia: AveriaItemDTO) {
+            // Mapeamos los datos reales de la API hacia la UI.
+            // Si el nombre de la máquina viene nulo, ponemos un texto por defecto.
+            val nombreMaquina = averia.maquinaria?.nombre ?: "Máquina desconocida"
+            val tipoAveria = averia.tipoAveria?.descripcion ?: "Tipo no especificado"
 
-            // Composición de strings para presentación UX: Nombre + [Estado Físico]
-            binding.tvMaquinaria.text = "${averia.maquinaria} (${averia.estadoMaquinaria})"
+            binding.tvTituloAveria.text = "$nombreMaquina - $tipoAveria"
+            binding.tvMaquinaria.text = nombreMaquina
 
-            // Null-safety handling: Uso del operador Elvis (?:) para proveer un fallback
-            // en caso de que la entidad no tenga fecha de asignación.
-            binding.tvFecha.text = averia.fechaAsignacion ?: "Sin asignar"
+            // Usamos la fecha de asignación. Si es nula, mostramos aviso.
+            binding.tvFecha.text = averia.fechaAsigTecnico ?: "Sin asignar"
 
-            // Mapeo de propiedad calculada (regla de negocio de UI)
-            binding.tvEstado.text = averia.estadoAveriaCalculado
+            // Calculamos el estado sobre la marcha basándonos en las fechas reales de la BD
+            val estadoCalculado = when {
+                !averia.fechaFinalizTecnico.isNullOrEmpty() -> "Finalizada"
+                !averia.fechaAcepTecnico.isNullOrEmpty() -> "Recibida"
+                !averia.fechaAsigTecnico.isNullOrEmpty() -> "Nueva"
+                else -> "Pendiente"
+            }
+            binding.tvEstado.text = estadoCalculado
 
-            // Event Routing: Interceptamos el evento de UI a nivel de raíz (ConstraintLayout/CardView)
-            // y lo despachamos hacia la función inyectada por el constructor.
+            // Routing del clic
             binding.root.setOnClickListener {
                 onAveriaClick(averia.id)
             }
         }
     }
 
-    /**
-     * Invocado por el LayoutManager para instanciar una nueva vista cuando no hay suficientes
-     * vistas recicladas disponibles en la caché del RecyclerView.
-     */
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AveriaViewHolder {
-        // Inflamos el layout asociado utilizando el contexto del ViewGroup padre
         val binding = ItemAveriaBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         return AveriaViewHolder(binding)
     }
 
-    /**
-     * Invocado por el LayoutManager para reemplazar el contenido de una vista reciclada
-     * con los datos de un elemento específico del dataset.
-     */
     override fun onBindViewHolder(holder: AveriaViewHolder, position: Int) {
-        val averiaActual = listaAverias[position]
-        holder.bind(averiaActual)
+        holder.bind(listaAverias[position])
     }
 
-    /**
-     * Retorna el tamaño total del dataset actual. Vital para que el RecyclerView
-     * sepa cuántos elementos debe iterar.
-     */
-    override fun getItemCount(): Int {
-        return listaAverias.size
-    }
+    override fun getItemCount(): Int = listaAverias.size
 
-    /**
-     * Mutador del estado interno del adaptador.
-     * Actualiza la colección en memoria y fuerza un repintado de la lista completa.
-     *
-     * @param nuevaLista Nuevo dataset filtrado o actualizado.
-     * * Nota técnica: Para listas masivas en producción, se recomienda refactorizar
-     * usando 'DiffUtil' o 'ListAdapter' en lugar de 'notifyDataSetChanged()' para
-     * calcular solo las diferencias y optimizar el rendimiento.
-     */
-    fun actualizarLista(nuevaLista: List<Averia>) {
+    fun actualizarLista(nuevaLista: List<AveriaItemDTO>) {
         listaAverias = nuevaLista
         notifyDataSetChanged()
     }

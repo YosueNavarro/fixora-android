@@ -24,18 +24,42 @@ class AuthRepository(
             val response = apiService.login(request)
 
             if (response.isSuccessful) {
-                // Si el servidor responde 200 OK, extraemos el token de la respuesta
-                val token = response.body()?.token
-                if (!token.isNullOrEmpty()) {
-                    // Guardamos el token de forma persistente
+                // Extraemos el cuerpo (Body) usando el DTO que acabamos de crear
+                val responseBody = response.body()
+                val token = responseBody?.token
+                val userId = responseBody?.usuario?.id
+
+                // Verificación de seguridad estricta: No damos por válido el login
+                // si el servidor no nos entrega las dos piezas clave.
+                if (!token.isNullOrEmpty() && userId != null) {
+                    // Guardamos el token y el ID de forma persistente y segura
                     sessionManager.saveAuthToken(token)
+                    sessionManager.saveUserId(userId)
+
                     Result.success("Login completado con éxito")
                 } else {
-                    Result.failure(Exception("El servidor no devolvió un token válido."))
+                    Result.failure(Exception("Vulnerabilidad o error de API: El servidor devolvió 200 OK, pero el token o el ID están vacíos."))
                 }
             } else {
-                // Si el servidor responde 401 (No autorizado), 404, 500...
-                Result.failure(Exception("Credenciales incorrectas o error en el servidor. Código: ${response.code()}"))
+                // ==========================================
+                // CAPTURA DE ERRORES DE NEGOCIO (UX)
+                // ==========================================
+
+                // Leemos el mensaje de error que nos manda NetBeans en el cuerpo de la respuesta
+                val errorBodyString = response.errorBody()?.string() ?: ""
+
+                // Buscamos la frase exacta que programó Nereida en su AuthService
+                if (errorBodyString.contains("Tipo de usuario incorrecto", ignoreCase = true)) {
+                    Result.failure(Exception("Acceso denegado: Esta aplicación es exclusiva para el personal técnico (Mecánicos)."))
+                }
+                // Fallback clásico por si cambia el texto pero mantiene el código HTTP 401/403
+                else if (response.code() == 401 || response.code() == 403) {
+                    Result.failure(Exception("Email o contraseña incorrectos."))
+                }
+                // Cualquier otro error (500, 404...)
+                else {
+                    Result.failure(Exception("Error en el servidor. Código: ${response.code()}"))
+                }
             }
         } catch (e: Exception) {
             // Error de red (sin internet, servidor caído, timeout de OkHttp)
