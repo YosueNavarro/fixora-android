@@ -1,35 +1,72 @@
 package com.tynsolutions.gestionaveriasmovil.ui.detalle.intervencion
 
 import androidx.lifecycle.ViewModel
-import com.tynsolutions.gestionaveriasmovil.data.local.FakeDataSource
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.tynsolutions.gestionaveriasmovil.data.repository.AveriasRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /**
- * Controlador lógico (ViewModel) para el caso de uso CU04: Registrar Intervención.
- * Actúa como intermediario entre la vista y el origen de datos, garantizando
- * el cumplimiento del principio de responsabilidad única (SRP) dentro de la arquitectura MVVM.
+ * Estados inmutables para la pantalla de registro de intervención.
+ * Permiten una gestión determinista de la UI durante las transacciones de red.
  */
-class IntervencionViewModel : ViewModel() {
+sealed class IntervencionUiState {
+    object Idle : IntervencionUiState()
+    object Loading : IntervencionUiState()
+    data class Success(val message: String) : IntervencionUiState()
+    data class Error(val message: String) : IntervencionUiState()
+}
+
+/**
+ * Orquestador lógico para el caso de uso CU04: Registrar Intervención[cite: 53, 99].
+ * Realiza la transición de datos desde la entrada del usuario hacia la persistencia remota.
+ */
+class IntervencionViewModel(
+    private val repository: AveriasRepository
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<IntervencionUiState>(IntervencionUiState.Idle)
+    val uiState: StateFlow<IntervencionUiState> = _uiState.asStateFlow()
 
     /**
-     * Ejecuta la lógica del Bloque 7.1 correspondiente a la Fase 1:
-     * agregar la intervención a la lista local.
-     * * Nota Arquitectónica (Fase 2): Este método será refactorizado para consumir
-     * el endpoint POST /averias/{id}/intervenciones mediante Retrofit.
-     *
-     * @param averiaId Identificador primario de la avería sobre la que se opera.
-     * @param texto Descripción detallada de las tareas ejecutadas por el técnico.
-     * @return true si la persistencia en memoria fue exitosa, false si la entidad no fue localizada.
+     * Ejecuta la lógica de persistencia remota para un informe técnico.
+     * @param idAveria Identificador de la entidad sobre la que se opera.
+     * @param texto Cuerpo del informe técnico.
      */
-    fun guardarIntervencion(averiaId: Int, texto: String): Boolean {
-        // Único punto de acceso autorizado al Mock Data Source para esta transacción
-        val averia = FakeDataSource.averias.find { it.id == averiaId }
+    fun registrarIntervencion(idAveria: Int, texto: String) {
+        if (texto.isBlank()) {
+            _uiState.value = IntervencionUiState.Error("La descripción del informe es obligatoria para el cumplimiento normativo.")
+            return
+        }
 
-        return if (averia != null) {
-            // Mutación controlada del estado interno de la entidad
-            averia.intervenciones.add(texto)
-            true // Transacción local completada con éxito
-        } else {
-            false // Operación abortada: Entidad no encontrada en el origen de datos
+        viewModelScope.launch {
+            _uiState.value = IntervencionUiState.Loading
+
+            // Invocación al repositorio para la persistencia en la API REST
+            val result = repository.registrarIntervencion(idAveria, texto)
+
+            result.fold(
+                onSuccess = {
+                    _uiState.value = IntervencionUiState.Success("Informe guardado en servidor.")
+                },
+                onFailure = { _uiState.value = IntervencionUiState.Error(it.message ?: "Fallo crítico en la sincronización del informe.") }
+            )
+        }
+    }
+
+    /**
+     * Patrón Factory para inyección de dependencias.
+     */
+    class Factory(private val repository: AveriasRepository) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(IntervencionViewModel::class.java)) {
+                return IntervencionViewModel(repository) as T
+            }
+            throw IllegalArgumentException("Clase ViewModel desconocida")
         }
     }
 }

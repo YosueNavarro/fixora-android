@@ -1,29 +1,27 @@
 package com.tynsolutions.gestionaveriasmovil.domain.model
 
+/**
+ * Entidad central del dominio que representa una Avería.
+ * Refactorizada para coincidir estrictamente con el contrato del backend actual,
+ * omitiendo el estado físico de la maquinaria para evitar inconsistencias de datos.
+ */
 data class Averia(
     val id: Int,
     val titulo: String,
     val descripcion: String,
-    val maquinaria: String,
-    val estadoMaquinaria: String, // "Operativa", "Averiada", "En mantenimiento", "Fuera de servicio"
+    val maquinaria: String, // Solo conservamos el nombre de la máquina
     val fechaInforme: String,
-    val fechaAsignacion: String?, // Son con '?' porque pueden ser nulas (aún no ha pasado)
+    val fechaAsignacion: String?,
     val fechaAceptacion: String?,
     val fechaFinalizacion: String?,
-
-    /*
-     Solución momentanea (fase 1) para las intervenciones,
-     En BBDD es un Varchar, habrá que buscar una solución para la conversión
-     o convertir este campo a String.
-    */
     val intervenciones: MutableList<String> = mutableListOf()
 ) {
-    // Magia de Kotlin: Calculamos el estado de la avería sobre la marcha para la interfaz
+    // Calculamos el estado administrativo de la avería sobre la marcha
     val estadoAveriaCalculado: String
         get() = when {
             fechaFinalizacion != null -> "Finalizada"
-            fechaAceptacion != null -> "Recibida" // Ya la ha aceptado el técnico
-            fechaAsignacion != null -> "Nueva"    // Se le ha asignado pero no la ha aceptado
+            fechaAceptacion != null -> "Recibida"
+            fechaAsignacion != null -> "Nueva"
             else -> "Pendiente"
         }
 }

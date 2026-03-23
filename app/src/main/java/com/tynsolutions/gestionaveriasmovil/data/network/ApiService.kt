@@ -6,28 +6,24 @@ import retrofit2.http.*
 
 /**
  * Contrato de la API REST para la gestión de averías de TYN Solutions.
- * Utiliza Corrutinas (suspend) para concurrencia asíncrona segura.
- * * ATENCIÓN: Todos los endpoints privados requieren inyección explícita del token JWT
- * mediante la cabecera 'Authorization' para garantizar la seguridad del sistema.
+ * Centraliza todas las operaciones de red, delegando la seguridad (JWT)
+ * al Interceptor de OkHttp para mantener una arquitectura limpia.
  */
 interface ApiService {
 
     // ==========================================
-    // 1. AUTENTICACIÓN (ENDPOINT PÚBLICO)
+    // 1. AUTENTICACIÓN
     // ==========================================
 
     @POST("auth/login")
     suspend fun login(@Body request: LoginRequest): Response<LoginResponse>
 
     // ==========================================
-    // 2. OBTENCIÓN DE DATOS (ENDPOINTS PRIVADOS - GET)
+    // 2. OBTENCIÓN DE DATOS (GET)
     // ==========================================
 
     /**
-     * Obtiene las averías del técnico asignado.
-     * @param token Cadena JWT con el formato "Bearer <token>".
-     * @param idTecnico Identificador único del técnico en BD.
-     * @param filtroTipoLista Filtro opcional para la consulta SQL del backend.
+     * Recupera el listado de averías asignadas a un técnico específico.
      */
     @GET("tecnicos/{id}/averias")
     suspend fun getAveriasTecnico(
@@ -36,48 +32,42 @@ interface ApiService {
     ): Response<AveriaTecnicoResponse>
 
     /**
-     * Obtiene los códigos y descripciones de los estados de situación posibles.
+     * Obtiene el catálogo de estados de situación para la maquinaria (Operativa, Averiada, etc.).
+     * Eliminamos el parámetro @Header porque el Interceptor ya lo gestiona.
      */
-    @GET("estado/situacion")
-    suspend fun getEstadosSituacion(
-        @Header("Authorization") token: String
-    ): Response<List<EstadoSituacionResponse>>
-
-    // ==========================================
-    // 3. MODIFICACIÓN DE DATOS (ENDPOINTS PRIVADOS - PUT)
-    // ==========================================
 
     /**
-     * Aceptar una avería asignada.
+     * Recupera el detalle de una avería envuelto en el objeto 'data'.
      */
+    @GET("averias/{id}")
+    suspend fun getAveriaDetalle(@Path("id") idAveria: Int): Response<AveriaDetalleResponse>
+
+    // ==========================================
+    // 3. OPERACIONES DE AVERÍAS (PUT)
+    // ==========================================
+
     @PUT("averias/{id}/aceptar")
-    suspend fun aceptarAveria(
-        @Path("id") idAveria: Int // <-- SOLO el ID, nada de Strings o Tokens
-    ): Response<Any>
+    suspend fun aceptarAveria(@Path("id") idAveria: Int): Response<Any>
 
-    /**
-     * Registrar intervención (cambio en descripción de avería).
-     */
     @PUT("averias/{id}/intervenciones")
     suspend fun registrarIntervencion(
         @Path("id") idAveria: Int,
-        @Body request: com.tynsolutions.gestionaveriasmovil.data.network.dto.IntervencionRequestDTO
+        @Body request: IntervencionRequestDTO
     ): Response<Any>
 
-    /**
-     * Finalizar una avería.
-     */
     @PUT("averias/{id}/finalizar")
-    suspend fun finalizarAveria(
-        @Path("id") idAveria: Int
-    ): Response<Any>
+    suspend fun finalizarAveria(@Path("id") idAveria: Int): Response<Any>
+
+    // ==========================================
+    // 4. GESTIÓN DE MAQUINARIA (PUT)
+    // ==========================================
 
     /**
-     * Cambiar estado de maquinaria a "fuera de servicio" u "operativa".
+     * Actualiza el estado operativo de una máquina específica.
+     * Eliminamos el parámetro @Header para evitar redundancias con el Interceptor.
      */
     @PUT("maquinaria/{id}/estado")
     suspend fun cambiarEstadoMaquina(
-        @Header("Authorization") token: String,
         @Path("id") idMaquinaria: Int,
         @Body request: CambiarEstadoMaquinaRequest
     ): Response<Map<String, String>>

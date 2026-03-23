@@ -1,46 +1,75 @@
 package com.tynsolutions.gestionaveriasmovil.ui.detalle.estado
 
 import androidx.lifecycle.ViewModel
-import com.tynsolutions.gestionaveriasmovil.data.local.FakeDataSource
-import com.tynsolutions.gestionaveriasmovil.domain.model.Averia
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.tynsolutions.gestionaveriasmovil.data.repository.AveriasRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /**
- * Controlador lógico (ViewModel) para el caso de uso CU05: Cambiar estado maquinaria.
- * Aísla la capa de presentación de la capa de acceso a datos, cumpliendo estrictamente
- * con el patrón arquitectónico MVVM.
+ * Estados inmutables para gestionar el ciclo de vida de la petición de red.
+ * Previene clics múltiples y permite manejar errores del servidor limpiamente.
  */
-class CambiarEstadoViewModel : ViewModel() {
+sealed class CambiarEstadoUiState {
+    object Idle : CambiarEstadoUiState()
+    object Loading : CambiarEstadoUiState()
+    data class Success(val message: String) : CambiarEstadoUiState()
+    data class Error(val message: String) : CambiarEstadoUiState()
+}
+
+/**
+ * Orquestador de la lógica de negocio para el cambio de estado físico de la maquinaria.
+ * Aisla a la vista de la complejidad de corrutinas y llamadas de red.
+ */
+class CambiarEstadoViewModel(
+    private val repository: AveriasRepository
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<CambiarEstadoUiState>(CambiarEstadoUiState.Idle)
+    val uiState: StateFlow<CambiarEstadoUiState> = _uiState.asStateFlow()
 
     /**
-     * Recupera la entidad de dominio asociada al identificador proporcionado.
-     *
-     * @param averiaId Identificador único de la avería.
-     * @return Objeto [Averia] si se encuentra en el origen de datos en memoria, o null en caso contrario.
+     * Transforma la selección humana en un código de estado válido para el backend
+     * y delega la ejecución al repositorio en un hilo secundario.
      */
-    fun obtenerAveria(averiaId: Int): Averia? {
-        // Único punto de acceso autorizado al origen de datos simulado
-        return FakeDataSource.averias.find { it.id == averiaId }
+    fun actualizarEstadoMaquinaria(idMaquinaria: Int, estadoTexto: String) {
+        viewModelScope.launch {
+            _uiState.value = CambiarEstadoUiState.Loading
+
+            // Mapeo defensivo: Convertimos el texto del RadioButton al ID esperado por el backend
+            // (Ajusta estos números según la tabla 'Estado' de tu base de datos)
+            val codigoEstado = when (estadoTexto) {
+                "Operativa" -> 1
+                "Averiada" -> 2
+                "En mantenimiento" -> 3
+                "Fuera de servicio" -> 4
+                else -> 2 // Fallback seguro
+            }
+
+            // Ejecución de la transacción de red
+            // NOTA: Asegúrate de tener este método implementado en tu AveriasRepository
+            val result = repository.cambiarEstadoMaquinaria(idMaquinaria, codigoEstado)
+
+            result.fold(
+                onSuccess = { _uiState.value = CambiarEstadoUiState.Success(it) },
+                onFailure = { _uiState.value = CambiarEstadoUiState.Error(it.message ?: "Fallo al comunicar con el servidor.") }
+            )
+        }
     }
 
     /**
-     * Ejecuta la mutación del estado físico de la maquinaria (Atributo local - Fase 1)[cite: 200].
-     * En la Fase 2, este método será refactorizado para invocar el endpoint:
-     * PUT /maquinaria/{id}/estado mediante Retrofit[cite: 201].
-     *
-     * @param averiaId Identificador primario de la avería a actualizar.
-     * @param nuevoEstado El nuevo estado físico seleccionado por el usuario (ej. "En mantenimiento").
-     * @return true si la operación de persistencia simulada fue exitosa, false si falló la localización.
+     * Factory obligatorio para inyectar el AveriasRepository
      */
-    fun actualizarEstadoMaquinaria(averiaId: Int, nuevoEstado: String): Boolean {
-        val averia = obtenerAveria(averiaId)
-
-        return if (averia != null) {
-            val index = FakeDataSource.averias.indexOf(averia)
-            // Actualización inmutable del objeto dentro de la colección mutable para mantener la coherencia
-            FakeDataSource.averias[index] = averia.copy(estadoMaquinaria = nuevoEstado)
-            true // Transacción local completada con éxito
-        } else {
-            false // Operación abortada: Entidad no encontrada
+    class Factory(private val repository: AveriasRepository) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(CambiarEstadoViewModel::class.java)) {
+                return CambiarEstadoViewModel(repository) as T
+            }
+            throw IllegalArgumentException("Clase ViewModel desconocida")
         }
     }
 }

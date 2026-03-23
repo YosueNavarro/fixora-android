@@ -3,7 +3,8 @@ package com.tynsolutions.gestionaveriasmovil.ui.listado
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.tynsolutions.gestionaveriasmovil.data.network.dto.AveriaItemDTO
+// Importación corregida: Ahora trabajamos estrictamente con el Modelo de Dominio seguro
+import com.tynsolutions.gestionaveriasmovil.domain.model.Averia
 import com.tynsolutions.gestionaveriasmovil.data.repository.AveriasRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,18 +14,19 @@ import kotlinx.coroutines.launch
 /**
  * Máquina de estados inmutable para la vista del listado.
  * Garantiza que la UI solo pueda estar en uno de estos tres estados,
- * evitando bugs visuales de concurrencia.
+ * evitando bugs visuales de concurrencia y aislando la Vista de la capa de Red.
  */
 sealed class ListadoUiState {
     object Loading : ListadoUiState()
-    data class Success(val averias: List<AveriaItemDTO>) : ListadoUiState()
+    // CORRECCIÓN ARQUITECTÓNICA: Exigimos el modelo de dominio puro (Averia)
+    data class Success(val averias: List<Averia>) : ListadoUiState()
     data class Error(val message: String) : ListadoUiState()
 }
 
 /**
  * ViewModel central para la pantalla de listado de averías.
- * Actúa como orquestador entre el repositorio de red y la interfaz de usuario,
- * gestionando el caché local en memoria para no saturar la red con peticiones repetidas.
+ * Actúa como orquestador entre el repositorio y la interfaz de usuario.
+ * Mantiene la Single Source of Truth (SSOT) en memoria para el filtrado reactivo.
  */
 class ListadoViewModel(
     private val repository: AveriasRepository
@@ -34,64 +36,42 @@ class ListadoViewModel(
     // ESTADO REACTIVO (UI)
     // ==========================================
 
-    // StateFlow privado que modificamos internamente de forma segura
     private val _uiState = MutableStateFlow<ListadoUiState>(ListadoUiState.Loading)
-
-    // StateFlow público, inmutable, expuesto a la vista (Fragment)
     val uiState: StateFlow<ListadoUiState> = _uiState.asStateFlow()
 
-    // Caché en memoria (SSOT temporal) para retener las averías de la API
-    // y permitir el filtrado por pestañas de forma instantánea y sin latencia de red.
-    private var cachéAverias: List<AveriaItemDTO> = emptyList()
+    // Caché en memoria (SSOT temporal) de tipo Dominio (Averia)
+    // Permite el filtrado por pestañas de forma instantánea y sin latencia de red.
+    private var cacheAverias: List<Averia> = emptyList()
 
     /**
      * Carga el set de datos inicial desde el servidor.
-     * Ejecutado asíncronamente en el contexto del viewModelScope.
+     * Ejecutado asíncronamente en el hilo principal delegando la E/S al repositorio.
      */
     fun cargarAverias(tipoFiltro: String = "nuevas") {
         viewModelScope.launch {
             _uiState.value = ListadoUiState.Loading
 
-            // 1. Le pedimos a la base de datos el paquete exacto
+            // 1. Delegamos la obtención segura al repositorio
             val result = repository.getAveriasAsignadas(tipoFiltro)
 
-            // 2. Procesamos la respuesta
+            // 2. Procesamos el resultado encapsulado
             result.fold(
                 onSuccess = { listaAverias ->
+                    // BUG CORREGIDO: Poblar la caché en memoria antes de emitir el estado
+                    // Si no guardamos esto aquí, los filtros posteriores fallarán.
+                    cacheAverias = listaAverias
                     _uiState.value = ListadoUiState.Success(listaAverias)
                 },
                 onFailure = { exception ->
-                    _uiState.value = ListadoUiState.Error(exception.message ?: "Fallo de conexión.")
+                    _uiState.value = ListadoUiState.Error(exception.message ?: "Fallo de conexión crítico.")
                 }
             )
         }
     }
 
-    /**
-     * Aplica el filtro de estado según la pestaña seleccionada en la UI.
-     * Soporta los estados: "Nueva", "Recibida" y "Finalizada".
-     *
-     * @param estado Nombre del estado administrativo de la avería.
-     */
-    fun filtrarPorEstado(estado: String) {
-        // En lugar de usar un campo pre-calculado, inferimos el estado de forma segura
-        // analizando los timestamps de la base de datos que nos envía el DTO.
-        val listaFiltrada = cachéAverias.filter { averia ->
-            when (estado) {
-                "Nueva" -> averia.fechaAcepTecnico.isNullOrEmpty() && averia.fechaFinalizTecnico.isNullOrEmpty()
-                "Recibida" -> !averia.fechaAcepTecnico.isNullOrEmpty() && averia.fechaFinalizTecnico.isNullOrEmpty()
-                "Finalizada" -> !averia.fechaFinalizTecnico.isNullOrEmpty()
-                else -> true // Fallback de seguridad: mostrar todas si el filtro no coincide
-            }
-        }
-
-        // Emitimos la lista filtrada a la interfaz gráfica
-        _uiState.value = ListadoUiState.Success(listaFiltrada)
-    }
 
     /**
-     * Patrón Factory para permitir la inyección de dependencias (AveriasRepository)
-     * en el constructor del ViewModel.
+     * Patrón Factory para inyección de dependencias estricta.
      */
     class Factory(private val repository: AveriasRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")

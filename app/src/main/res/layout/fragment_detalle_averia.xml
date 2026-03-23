@@ -19,7 +19,7 @@
             style="@style/Widget.MaterialComponents.Button.TextButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="← Volver al listado"
+            android:text="@string/volver_al_listado"
             android:textAllCaps="false"
             android:textColor="#3A75B5"
             android:textSize="14sp"
@@ -68,7 +68,7 @@
                     tools:text="Excavadora Volvo A40" />
 
                 <TextView
-                    android:id="@+id/tvEstadoDetalle"
+                    android:id="@+id/tvEstadoAveriaDetalle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
@@ -83,14 +83,14 @@
                     tools:text="Nueva" />
 
                 <TextView
-                    android:id="@+id/tvFechaDetalle"
+                    android:id="@+id/tvFechaAsignacionDetalle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:textColor="#888888"
                     android:textSize="12sp"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/tvEstadoDetalle"
+                    app:layout_constraintTop_toBottomOf="@id/tvEstadoAveriaDetalle"
                     tools:text="Asignada el: 10/03/2026" />
 
                 <View
@@ -99,14 +99,14 @@
                     android:layout_height="1dp"
                     android:layout_marginTop="20dp"
                     android:background="#D1D1D1"
-                    app:layout_constraintTop_toBottomOf="@id/tvFechaDetalle" />
+                    app:layout_constraintTop_toBottomOf="@id/tvFechaAsignacionDetalle" />
 
                 <TextView
                     android:id="@+id/tvDescripcionLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="20dp"
-                    android:text="Descripción del problema:"
+                    android:text="@string/descripci_n_del_problema"
                     android:textColor="#333333"
                     android:textSize="14sp"
                     android:textStyle="bold"
@@ -139,7 +139,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="20dp"
-                    android:text="Historial de Intervenciones:"
+                    android:text="@string/historial_de_intervenciones"
                     android:textColor="#333333"
                     android:textSize="14sp"
                     android:textStyle="bold"
@@ -177,7 +177,7 @@
                         style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                         android:layout_width="match_parent"
                         android:layout_height="55dp"
-                        android:text="Aceptar avería"
+                        android:text="@string/aceptar_aver_a"
                         android:textAllCaps="false"
                         android:textSize="16sp"
                         app:backgroundTint="#63AAE8"
@@ -190,24 +190,10 @@
                         android:layout_width="match_parent"
                         android:layout_height="55dp"
                         android:layout_marginTop="8dp"
-                        android:text="Registrar intervención"
+                        android:text="@string/registrar_intervenci_n"
                         android:textAllCaps="false"
                         android:textSize="16sp"
                         app:backgroundTint="#63AAE8"
-                        app:cornerRadius="4dp"
-                        android:visibility="gone" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnCambiarEstado"
-                        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="55dp"
-                        android:layout_marginTop="8dp"
-                        android:text="Cambiar estado maquinaria"
-                        android:textAllCaps="false"
-                        android:textColor="#3A75B5"
-                        android:textSize="16sp"
-                        app:backgroundTint="#EDF3FB"
                         app:cornerRadius="4dp"
                         android:visibility="gone" />
 
@@ -217,7 +203,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="55dp"
                         android:layout_marginTop="8dp"
-                        android:text="Finalizar avería"
+                        android:text="@string/finalizar_aver_a"
                         android:textAllCaps="false"
                         android:textColor="#FFFFFF"
                         android:textSize="16sp"

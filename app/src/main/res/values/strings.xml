@@ -9,8 +9,6 @@
     <string name="invalid_username">Not a valid username</string>
     <string name="invalid_password">Password must be >5 characters</string>
     <string name="login_failed">"Login failed"</string>
-    <!-- TODO: Remove or change this placeholder text -->
-    <string name="hello_blank_fragment">Hello blank fragment</string>
 
     <string name="titulo_cambiar_estado">Actualizar Estado de Máquina</string>
     <string name="estado_averiada">Averiada</string>
@@ -20,4 +18,15 @@
     <string name="btn_actualizar_estado">Actualizar Estado</string>
 
     <string name="tab_finalizadas">Finalizadas</string>
+    <string name="nuevas">Nuevas</string>
+    <string name="recibidas">Recibidas</string>
+    <string name="finalizadas">Finalizadas</string>
+    <string name="salir">Salir</string>
+    <string name="volver_al_listado">← Volver al listado</string>
+    <string name="descripci_n_del_problema">Descripción del problema:</string>
+    <string name="historial_de_intervenciones">Historial de Intervenciones:</string>
+    <string name="aceptar_aver_a">Aceptar avería</string>
+    <string name="registrar_intervenci_n">Registrar intervención</string>
+    <string name="finalizar_aver_a">Finalizar avería</string>
+    <string name="formato_nombre_maquina">Máquina: %1$s</string>
 </resources>

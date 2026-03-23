@@ -8,37 +8,34 @@ import android.widget.RadioButton
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.tynsolutions.gestionaveriasmovil.R
+import com.tynsolutions.gestionaveriasmovil.data.local.AveriaCache
+import com.tynsolutions.gestionaveriasmovil.data.network.ApiClient
+import com.tynsolutions.gestionaveriasmovil.data.network.SessionManager
+import com.tynsolutions.gestionaveriasmovil.data.repository.AveriasRepository
 import com.tynsolutions.gestionaveriasmovil.databinding.FragmentCambiarEstadoBinding
+import kotlinx.coroutines.launch
 
 /**
- * Controlador de la interfaz de usuario para el Bloque 7.2 (Cambiar Estado Fragment)[cite: 63, 198].
- * Delega de forma transparente toda la lógica de negocio y persistencia al [CambiarEstadoViewModel].
+ * Controlador de la interfaz de usuario para el Bloque 7.2.
+ * Captura la decisión del técnico y la delega a la capa de red a través del ViewModel.
  */
 class CambiarEstadoFragment : Fragment() {
 
-    // Prevención de fugas de memoria (Memory Leaks) mediante manejo seguro del ciclo de vida del ViewBinding
     private var _binding: FragmentCambiarEstadoBinding? = null
     private val binding get() = _binding!!
 
-    // Inyección de dependencias del ViewModel ligado exclusivamente al ciclo de vida de este Fragmento
-    private val viewModel: CambiarEstadoViewModel by viewModels()
-
-    // Estado de navegación persistido
-    private var averiaId: Int = -1
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        // Deserialización segura de los argumentos de entrada
-        arguments?.let {
-            averiaId = it.getInt("AVERIA_ID")
-        }
+    // Inyección segura con Retrofit y Token de sesión
+    private val viewModel: CambiarEstadoViewModel by viewModels {
+        val sessionManager = SessionManager(requireContext())
+        val apiService = ApiClient.getApiService(sessionManager)
+        CambiarEstadoViewModel.Factory(AveriasRepository(apiService, sessionManager))
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentCambiarEstadoBinding.inflate(inflater, container, false)
         return binding.root
     }
@@ -46,80 +43,77 @@ class CambiarEstadoFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Orquestación de la inicialización de la vista
         cargarDatosUI()
+        setupObservers()
         setupListeners()
     }
 
     /**
-     * Solicita los datos de la entidad a la capa lógica para inicializar el estado visual de los componentes.
+     * Extrae el contexto de la máquina directamente desde la memoria segura (Single Source of Truth).
      */
     private fun cargarDatosUI() {
-        // Solicitud de estado delegado al ViewModel (Patrón MVVM estricto)
-        val averia = viewModel.obtenerAveria(averiaId)
+        val averia = AveriaCache.averiaSeleccionada
+        if (averia != null) {
+            binding.tvNombreMaquinaActual.text = getString(R.string.formato_nombre_maquina, averia.maquinaria)
+            // Al no recibir el estado del backend, dejamos los RadioButtons limpios
+            // para forzar una selección consciente por parte del técnico.
+        } else {
+            Toast.makeText(requireContext(), "Error de integridad: Memoria caché vacía.", Toast.LENGTH_LONG).show()
+            parentFragmentManager.popBackStack()
+        }
+    }
 
-        averia?.let {
-            binding.tvNombreMaquinaActual.text = "Máquina: ${it.maquinaria}"
-
-            // Mapeo del estado del modelo de dominio al estado visual interactivo (RadioButtons)
-            when (it.estadoMaquinaria) {
-                "Averiada" -> binding.rbAveriada.isChecked = true
-                "En mantenimiento" -> binding.rbMantenimiento.isChecked = true
-                "Fuera de servicio" -> binding.rbFueraServicio.isChecked = true
-                "Operativa" -> binding.rbOperativa.isChecked = true
+    /**
+     * Escucha reactivamente los eventos de red.
+     */
+    private fun setupObservers() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiState.collect { state ->
+                    when (state) {
+                        is CambiarEstadoUiState.Idle -> { /* Estado inicial */ }
+                        is CambiarEstadoUiState.Loading -> {
+                            // Bloqueamos el botón para evitar envíos duplicados a la base de datos
+                            binding.btnGuardarEstadoMaquina.isEnabled = false
+                        }
+                        is CambiarEstadoUiState.Success -> {
+                            Toast.makeText(requireContext(), state.message, Toast.LENGTH_SHORT).show()
+                            parentFragmentManager.popBackStack()
+                        }
+                        is CambiarEstadoUiState.Error -> {
+                            binding.btnGuardarEstadoMaquina.isEnabled = true
+                            Toast.makeText(requireContext(), state.message, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
             }
         }
     }
 
     /**
-     * Registra los manejadores de eventos (Event Handlers) para capturar las intenciones del usuario.
+     * Captura las acciones físicas del usuario.
      */
     private fun setupListeners() {
-        binding.btnVolver.setOnClickListener {
-            // Esto saca el fragmento actual de la pila y vuelve a la lista
-            parentFragmentManager.popBackStack()
-        }
+        binding.btnVolver.setOnClickListener { parentFragmentManager.popBackStack() }
 
         binding.btnGuardarEstadoMaquina.setOnClickListener {
             val selectedId = binding.rgEstadoMaquina.checkedRadioButtonId
 
-            // Early Return Pattern: Validación en la capa de vista antes de invocar lógica de negocio
             if (selectedId != -1) {
                 val radioButton = binding.root.findViewById<RadioButton>(selectedId)
                 val nuevoEstado = radioButton.text.toString()
 
-                // Delegación de la mutación de estado al controlador lógico
-                val exito = viewModel.actualizarEstadoMaquinaria(averiaId, nuevoEstado)
-
-                if (exito) {
-                    Toast.makeText(requireContext(), "Estado actualizado a: $nuevoEstado", Toast.LENGTH_SHORT).show()
-                    // Retorno enrutado al flujo principal (Detalle de Avería) tras confirmar el éxito
-                    parentFragmentManager.popBackStack()
-                } else {
-                    Toast.makeText(requireContext(), "Error técnico al actualizar el estado", Toast.LENGTH_SHORT).show()
-                }
+                // Extraemos el ID de la caché segura y lanzamos la petición
+                val idMaquina = AveriaCache.averiaSeleccionada?.id ?: return@setOnClickListener
+                viewModel.actualizarEstadoMaquinaria(idMaquina, nuevoEstado)
             } else {
                 Toast.makeText(requireContext(), "Operación denegada: Seleccione un estado válido", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    companion object {
-        /**
-         * Factory Method Pattern.
-         * Garantiza una instanciación segura proporcionando una API tipada para inyectar
-         * dependencias (AVERIA_ID) en el Bundle del fragmento.
-         */
-        fun newInstance(id: Int) = CambiarEstadoFragment().apply {
-            arguments = Bundle().apply {
-                putInt("AVERIA_ID", id)
-            }
-        }
-    }
-
     override fun onDestroyView() {
         super.onDestroyView()
-        // Limpieza de referencias críticas en el desmontaje de la vista para evitar memory leaks
         _binding = null
     }
 }
