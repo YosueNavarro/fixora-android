@@ -11,8 +11,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingHorizontal="16dp"
-        android:paddingTop="32dp"
-        android:paddingBottom="24dp">
+        android:paddingTop="24dp"
+        android:paddingBottom="32dp">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnVolver"
@@ -30,10 +30,10 @@
             android:id="@+id/cardContenido"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="12dp"
             app:cardBackgroundColor="#FFFFFF"
-            app:cardCornerRadius="6dp"
-            app:cardElevation="3dp"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="4dp"
             app:strokeWidth="0dp"
             app:layout_constraintTop_toBottomOf="@id/btnVolver">
 
@@ -46,7 +46,7 @@
                     android:id="@+id/tvTituloDetalle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:textColor="#333333"
+                    android:textColor="#212121"
                     android:textSize="22sp"
                     android:textStyle="bold"
                     app:layout_constraintEnd_toEndOf="parent"
@@ -61,7 +61,6 @@
                     android:layout_marginTop="4dp"
                     android:textColor="#63AAE8"
                     android:textSize="16sp"
-                    android:textStyle="bold"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toBottomOf="@id/tvTituloDetalle"
@@ -80,13 +79,13 @@
                     android:textStyle="bold"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toBottomOf="@id/tvMaquinariaDetalle"
-                    tools:text="Nueva" />
+                    tools:text="NUEVA" />
 
                 <TextView
                     android:id="@+id/tvFechaAsignacionDetalle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="16dp"
                     android:textColor="#888888"
                     android:textSize="12sp"
                     app:layout_constraintStart_toStartOf="parent"
@@ -98,6 +97,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:layout_marginTop="20dp"
+                    android:alpha="0.4"
                     android:background="#D1D1D1"
                     app:layout_constraintTop_toBottomOf="@id/tvFechaAsignacionDetalle" />
 
@@ -107,7 +107,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="20dp"
                     android:text="@string/descripci_n_del_problema"
-                    android:textColor="#333333"
+                    android:textColor="#212121"
                     android:textSize="14sp"
                     android:textStyle="bold"
                     app:layout_constraintStart_toStartOf="parent"
@@ -119,18 +119,19 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:lineSpacingExtra="4dp"
-                    android:textColor="#666666"
-                    android:textSize="14sp"
+                    android:textColor="#555555"
+                    android:textSize="15sp"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toBottomOf="@id/tvDescripcionLabel"
-                    tools:text="El brazo articulado pierde fuerza al levantar carga máxima. Se sospecha de una fuga en la válvula principal o manguito desgastado. Requiere revisión urgente." />
+                    tools:text="Descripción técnica..." />
 
                 <View
                     android:id="@+id/separadorIntervenciones"
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:layout_marginTop="20dp"
+                    android:alpha="0.4"
                     android:background="#D1D1D1"
                     app:layout_constraintTop_toBottomOf="@id/tvDescripcionDetalle" />
 
@@ -140,12 +141,11 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="20dp"
                     android:text="@string/historial_de_intervenciones"
-                    android:textColor="#333333"
+                    android:textColor="#212121"
                     android:textSize="14sp"
                     android:textStyle="bold"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/separadorIntervenciones"
-                    tools:visibility="visible" />
+                    app:layout_constraintTop_toBottomOf="@id/separadorIntervenciones" />
 
                 <TextView
                     android:id="@+id/tvIntervencionesLista"
@@ -153,13 +153,11 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:lineSpacingExtra="4dp"
-                    android:textColor="#666666"
+                    android:textColor="#555555"
                     android:textSize="14sp"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/tvIntervencionesLabel"
-                    tools:text="• Se revisó la válvula.\n• Se cambió el aceite."
-                    tools:visibility="visible" />
+                    app:layout_constraintTop_toBottomOf="@id/tvIntervencionesLabel" />
 
                 <LinearLayout
                     android:id="@+id/layoutAcciones"
@@ -169,46 +167,51 @@
                     android:orientation="vertical"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/tvIntervencionesLista"
-                    tools:visibility="visible">
+                    app:layout_constraintTop_toBottomOf="@id/tvIntervencionesLista">
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnAceptarAveria"
                         style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                         android:layout_width="match_parent"
-                        android:layout_height="55dp"
+                        android:layout_height="56dp"
                         android:text="@string/aceptar_aver_a"
                         android:textAllCaps="false"
                         android:textSize="16sp"
                         app:backgroundTint="#63AAE8"
-                        app:cornerRadius="4dp"
+                        app:cornerRadius="28dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
                         android:visibility="gone" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnRegistrarIntervencion"
                         style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                         android:layout_width="match_parent"
-                        android:layout_height="55dp"
-                        android:layout_marginTop="8dp"
+                        android:layout_height="56dp"
+                        android:layout_marginTop="12dp"
                         android:text="@string/registrar_intervenci_n"
                         android:textAllCaps="false"
                         android:textSize="16sp"
                         app:backgroundTint="#63AAE8"
-                        app:cornerRadius="4dp"
+                        app:cornerRadius="28dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
                         android:visibility="gone" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnFinalizarAveria"
                         style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                         android:layout_width="match_parent"
-                        android:layout_height="55dp"
-                        android:layout_marginTop="8dp"
+                        android:layout_height="56dp"
+                        android:layout_marginTop="12dp"
                         android:text="@string/finalizar_aver_a"
                         android:textAllCaps="false"
                         android:textColor="#FFFFFF"
                         android:textSize="16sp"
                         app:backgroundTint="#D32F2F"
-                        app:cornerRadius="4dp"
+                        app:cornerRadius="28dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
                         android:visibility="gone" />
 
                 </LinearLayout>

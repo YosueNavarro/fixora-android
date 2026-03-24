@@ -4,23 +4,33 @@ import okhttp3.Interceptor
 import okhttp3.Response
 
 /**
- * Interceptor de red que inyecta automáticamente el token de seguridad en las cabeceras.
- * Esto centraliza la seguridad y evita tener que pasar el token manualmente en cada llamada a la API.
+ * Middleware de red para la orquestación global de la seguridad HTTP.
+ * Implementa el esquema de autenticación estandarizado Bearer (RFC 6750), inyectando
+ * el token JWT en la cabecera 'Authorization' de todas las peticiones salientes.
+ *
+ * Aislar esta lógica en la capa de OkHttp previene la fuga de responsabilidades
+ * hacia los Repositorios y garantiza una política de "Zero Trust" interna,
+ * donde ninguna mutación de red abandona el dispositivo sin ser evaluada para su firma.
  */
 class AuthInterceptor(private val sessionManager: SessionManager) : Interceptor {
 
+    /**
+     * Intercepta la cadena de ejecución (Chain) para mutar la petición original
+     * antes de su emisión hacia el servidor perimetral.
+     */
     override fun intercept(chain: Interceptor.Chain): Response {
+        // Clonamos la petición original para respetar la inmutabilidad de la cadena base
         val requestBuilder = chain.request().newBuilder()
 
-        // Obtenemos el token almacenado
+        // Recuperación síncrona del criptograma desde el almacenamiento local
         val token = sessionManager.fetchAuthToken()
 
-        // Si existe el token, lo inyectamos con el formato Bearer exigido por el servidor
+        // Inyección de la credencial: Si el token es válido (sesión activa), se firma la cabecera
         if (!token.isNullOrEmpty()) {
             requestBuilder.addHeader("Authorization", "Bearer $token")
         }
 
-        // Ejecutamos la petición con las cabeceras modificadas
+        // Se retoma el flujo de red delegando la petición mutada al siguiente interceptor o al backend
         return chain.proceed(requestBuilder.build())
     }
 }

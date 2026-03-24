@@ -1,90 +1,97 @@
 package com.tynsolutions.gestionaveriasmovil.ui.login
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.tynsolutions.gestionaveriasmovil.data.repository.AuthRepository
-import kotlinx.coroutines.launch
 import android.content.Context
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.tynsolutions.gestionaveriasmovil.data.network.ApiClient
 import com.tynsolutions.gestionaveriasmovil.data.network.SessionManager
+import com.tynsolutions.gestionaveriasmovil.data.repository.AuthRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /**
- * Capa de presentación (ViewModel) encargada de procesar las reglas de negocio
- * del flujo de autenticación y exponer el estado reactivo a la Vista.
+ * Jerarquía de estados inmutables para el flujo de autenticación.
+ * Garantiza que la vista reaccione de forma determinista ante el éxito,
+ * el fallo o la latencia de la red.
+ */
+sealed class LoginUiState {
+    object Idle : LoginUiState()
+    object Loading : LoginUiState()
+    object Success : LoginUiState()
+    data class Error(val message: String) : LoginUiState()
+}
+
+/**
+ * Orquestador de la lógica de presentación para el control de acceso.
+ * Implementa el patrón Unidirectional Data Flow (UDF) para gestionar las credenciales
+ * y asegurar la persistencia de la sesión mediante la capa de Dominio.
  */
 class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
 
-    // --- Backing Properties ---
-    // Patrón arquitectónico para encapsular la mutabilidad del estado.
-    // _loginExitoso permite lectura/escritura interna. loginExitoso expone solo lectura a la Vista.
-    private val _loginExitoso = MutableLiveData<Boolean>()
-    val loginExitoso: LiveData<Boolean> get() = _loginExitoso
-
-    private val _mensajeError = MutableLiveData<String>()
-    val mensajeError: LiveData<String> get() = _mensajeError
-
-    // Nuevo estado reactivo para gestionar el feedback visual durante la latencia de red.
-    private val _cargando = MutableLiveData<Boolean>()
-    val cargando: LiveData<Boolean> get() = _cargando
+    // Encapsulamiento del estado: El estado interno es mutable, pero se expone como inmutable (Read-only).
+    private val _uiState = MutableStateFlow<LoginUiState>(LoginUiState.Idle)
+    val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
     /**
-     * Valida las credenciales ingresadas aplicando reglas de negocio locales y
-     * delegando la autenticación remota al repositorio.
+     * Valida y procesa la intención de acceso del usuario.
+     * Implementa un patrón de validación temprana (Fail-fast) para minimizar
+     * las peticiones innecesarias al servidor perimetral.
      *
-     * @param emailInput Correo electrónico ingresado por el usuario.
-     * @param passwordInput Contraseña ingresada por el usuario.
+     * @param email Correo electrónico sanitizado.
+     * @param password Contraseña para verificación criptográfica en servidor.
      */
-    fun validarLogin(emailInput: String, passwordInput: String) {
-        // 1. Sanitización y validación de capa de vista (Early return pattern).
-        if (emailInput.isBlank() || passwordInput.isBlank()) {
-            _mensajeError.value = "Por favor, rellena todos los campos"
+    fun intentarLogin(email: String, password: String) {
+        // 1. Validación de integridad de entrada en capa de presentación
+        if (email.isBlank() || password.isBlank()) {
+            _uiState.value = LoginUiState.Error("Identidad y credenciales son obligatorias.")
             return
         }
 
-        // 2. Transición a estado de carga. La UI debe bloquear interacciones repetidas.
-        _cargando.value = true
-
-        // 3. Delegación al Repositorio (Fase 2 - Conexión real a la API).
-        // viewModelScope garantiza que la corrutina se cancele automáticamente si el ViewModel se destruye,
-        // previniendo fugas de memoria (Memory Leaks) y crashes por respuestas tardías.
         viewModelScope.launch {
-            val resultado = repository.realizarLogin(emailInput, passwordInput)
+            // 2. Transición a estado de bloqueo de UI (Indempotencia)
+            _uiState.value = LoginUiState.Loading
 
-            // 4. Evaluación del resultado devuelto por la capa de red y seguridad.
+            // 3. Delegación de la transacción de seguridad al repositorio de dominio
+            val resultado = repository.realizarLogin(email, password)
+
+            // 4. Mapeo del resultado de red a estados de interfaz
             resultado.fold(
                 onSuccess = {
-                    // El SessionManager ya ha almacenado el token JWT de forma segura.
-                    _cargando.value = false
-                    _loginExitoso.value = true
+                    _uiState.value = LoginUiState.Success
                 },
                 onFailure = { excepcion ->
-                    // Emisión de evento de fallo con el detalle proporcionado por el servidor o la red.
-                    _cargando.value = false
-                    _mensajeError.value = excepcion.message ?: "Error desconocido al contactar con el servidor"
+                    _uiState.value = LoginUiState.Error(
+                        excepcion.message ?: "Error de protocolo: Fallo en la comunicación con el servicio de identidad."
+                    )
                 }
             )
         }
     }
 
     /**
-     * Patrón Factory para inyectar las dependencias de red y seguridad
-     * en el LoginViewModel en el momento de su creación.
+     * Resetea el estado para permitir nuevos intentos tras un error de validación.
      */
-    class LoginViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
+    fun resetEstado() {
+        _uiState.value = LoginUiState.Idle
+    }
+
+    /**
+     * Factory de inyección de dependencias.
+     * Centraliza la construcción del grafo de objetos (Inversión de Control).
+     */
+    class Factory(private val context: Context) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(LoginViewModel::class.java)) {
-                // Ensamblamos la cadena de dependencias
                 val sessionManager = SessionManager(context)
                 val apiService = ApiClient.getApiService(sessionManager)
                 val repository = AuthRepository(apiService, sessionManager)
-
-                @Suppress("UNCHECKED_CAST")
                 return LoginViewModel(repository) as T
             }
-            throw IllegalArgumentException("Clase ViewModel desconocida")
+            throw IllegalArgumentException("Fallo en la resolución: Clase de ViewModel no registrada.")
         }
     }
 }

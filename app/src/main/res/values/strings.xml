@@ -28,5 +28,9 @@
     <string name="aceptar_aver_a">Aceptar avería</string>
     <string name="registrar_intervenci_n">Registrar intervención</string>
     <string name="finalizar_aver_a">Finalizar avería</string>
+    <string name="formato_fecha_asignacion">Asignada el: %1$s</string>
     <string name="formato_nombre_maquina">Máquina: %1$s</string>
+    <string name="logout_title">Cerrar sesión</string>
+    <string name="logout_message">¿Estás seguro de que deseas salir de la aplicación? Tendrás que volver a introducir tus credenciales.</string>
+    <string name="cancelar">Cancelar</string>
 </resources>

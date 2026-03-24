@@ -2,13 +2,15 @@ package com.tynsolutions.gestionaveriasmovil.data.network.dto
 
 import com.google.gson.annotations.SerializedName
 
-/**
- * Agrupación de Data Transfer Objects (DTOs) para el flujo de autenticación.
- * Mantenerlos en un solo archivo mejora la cohesión del módulo de red.
+/*
+ * Contratos de red (DTOs) para el flujo de autenticación y autorización.
+ * Agrupados por dominio funcional para maximizar la cohesión del módulo.
  */
 
 /**
- * DTO para enviar las credenciales al servidor.
+ * Payload para la petición de inicio de sesión.
+ * Encapsula las credenciales del técnico para su transmisión.
+ * NOTA DE SEGURIDAD: Este DTO solo debe transmitirse a través de canales cifrados (HTTPS).
  */
 data class LoginRequest(
     @SerializedName("email") val email: String,
@@ -16,10 +18,10 @@ data class LoginRequest(
 )
 
 /**
- * DTO que mapea la respuesta de éxito (HTTP 200) del servidor.
- * Contiene el token JWT criptográfico y los metadatos del técnico.
- * REGLA DE SEGURIDAD: Usamos tipos anulables (?) para evitar NullPointerExceptions
- * durante la deserialización de Gson si el JSON llega modificado o incompleto.
+ * Wrapper para la respuesta exitosa del servicio de autenticación.
+ * Contiene el token de sesión (JWT) y la identidad del usuario.
+ * Implementa propiedades anulables como mecanismo de defensa ante respuestas
+ * malformadas o posibles evoluciones del contrato de la API, evitando crashes por NPE.
  */
 data class LoginResponse(
     @SerializedName("token") val token: String?,
@@ -27,8 +29,8 @@ data class LoginResponse(
 )
 
 /**
- * Mapeo del objeto anidado "usuario" que devuelve la API de NetBeans.
- * Añadido el campo 'rol' para mantener la paridad estricta con el JSON del servidor.
+ * DTO anidado que representa la entidad del usuario en el contexto de login.
+ * Mantiene paridad estricta con el nodo 'usuario' devuelto por el servidor.
  */
 data class UsuarioLoginDTO(
     @SerializedName("id") val id: Int,

@@ -1,15 +1,19 @@
 package com.tynsolutions.gestionaveriasmovil.ui.detalle
 
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import android.widget.Toast
+import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.tynsolutions.gestionaveriasmovil.R
 import com.tynsolutions.gestionaveriasmovil.data.network.ApiClient
 import com.tynsolutions.gestionaveriasmovil.data.network.SessionManager
 import com.tynsolutions.gestionaveriasmovil.data.repository.AveriasRepository
@@ -17,13 +21,11 @@ import com.tynsolutions.gestionaveriasmovil.databinding.FragmentDetalleAveriaBin
 import com.tynsolutions.gestionaveriasmovil.domain.model.Averia
 import com.tynsolutions.gestionaveriasmovil.ui.detalle.intervencion.IntervencionFragment
 import kotlinx.coroutines.launch
-import android.graphics.Color
-import android.widget.TextView
-import androidx.core.graphics.ColorUtils
 
 /**
- * Controlador de la vista detallada de una avería.
- * Gestiona la presentación de datos y el flujo hacia el registro de intervenciones.
+ * Controlador de vista para el detalle exhaustivo de incidencias.
+ * Implementa el patrón Observer para reaccionar a los cambios de estado del ViewModel
+ * y gestiona la máquina de estados visual para la botonera de acción técnica.
  */
 class DetalleAveriaFragment : Fragment() {
 
@@ -31,181 +33,175 @@ class DetalleAveriaFragment : Fragment() {
     private val binding get() = _binding!!
 
     private val viewModel: DetalleViewModel by viewModels {
-        val sessionManager = SessionManager(requireContext())
-        val apiService = ApiClient.getApiService(sessionManager)
-        DetalleViewModel.Factory(AveriasRepository(apiService, sessionManager))
+        val session = SessionManager(requireContext())
+        val repository = AveriasRepository(ApiClient.getApiService(session), session)
+        DetalleViewModel.Factory(repository)
     }
 
-    private var idActual: Int = -1
+    private var idAveriaActual: Int = -1
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
         _binding = FragmentDetalleAveriaBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        setupObservers()
-        setupListeners()
+        configurarObservadores()
+        configurarManejadoresEventos()
     }
 
-    private fun setupObservers() {
+    /**
+     * Suscripción reactiva al flujo de estados de la UI.
+     * Garantiza la coherencia visual entre los datos en caché y las actualizaciones remotas.
+     */
+    private fun configurarObservadores() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.uiState.collect { state ->
-                    when (state) {
-                        is DetalleUiState.Loading -> deshabilitarBotones()
+                viewModel.uiState.collect { estado ->
+                    when (estado) {
+                        is DetalleUiState.Loading -> alternarInteractividad(false)
                         is DetalleUiState.Success -> {
-                            idActual = state.averia.id
-                            restaurarBotones() // Importante: restaurar para permitir más acciones
-                            renderizarUI(state.averia)
+                            idAveriaActual = estado.averia.id
+                            alternarInteractividad(true)
+                            poblarComponentesUI(estado.averia)
                         }
                         is DetalleUiState.Error -> {
-                            restaurarBotones()
-                            Toast.makeText(requireContext(), state.message, Toast.LENGTH_LONG).show()
+                            alternarInteractividad(true)
+                            Toast.makeText(requireContext(), estado.message, Toast.LENGTH_LONG).show()
                         }
-                        is DetalleUiState.AccionCompletada -> {
-                            // Usamos el manejador de lógica para decidir si cerrar o refrescar
-                            handleAccionCompletada(state.message)
-                        }
+                        is DetalleUiState.AccionCompletada -> procesarEventoFinalizacion(estado.message)
                     }
                 }
             }
         }
     }
 
-    private fun setupListeners() {
+    /**
+     * Establece los listeners para la interacción del técnico.
+     */
+    private fun configurarManejadoresEventos() {
+        binding.btnVolver.setOnClickListener { parentFragmentManager.popBackStack() }
+
         binding.btnAceptarAveria.setOnClickListener {
-            if (idActual != -1) viewModel.aceptarAveria(idActual)
+            if (idAveriaActual != -1) viewModel.aceptarAveria(idAveriaActual)
         }
 
         binding.btnFinalizarAveria.setOnClickListener {
-            if (idActual != -1) viewModel.finalizarAveria(idActual)
+            if (idAveriaActual != -1) viewModel.finalizarAveria(idAveriaActual)
         }
 
-        binding.btnVolver.setOnClickListener { parentFragmentManager.popBackStack() }
-
-        // Navegación exclusiva al registro de intervención
         binding.btnRegistrarIntervencion.setOnClickListener {
-            val fragment = IntervencionFragment()
-            val bundle = Bundle()
-
-            bundle.putInt("id_averia", idActual)
-            fragment.arguments = bundle
-
-            parentFragmentManager.beginTransaction()
-                .replace(com.tynsolutions.gestionaveriasmovil.R.id.main_container, fragment)
-                .addToBackStack(null)
-                .commit()
+            navegarARegistroIntervencion()
         }
-    }
-
-    private fun renderizarUI(averia: Averia) {
-
-        binding.tvTituloDetalle.text = averia.titulo
-        binding.tvMaquinariaDetalle.text = averia.maquinaria
-        binding.tvFechaAsignacionDetalle.text = "Asignada el: ${averia.fechaAsignacion ?: "Pendiente"}"
-        binding.tvDescripcionDetalle.text = averia.descripcion
-
-        // =========================================================================
-        // INTEGRACIÓN DEL ESTADO VISUAL: Sustituimos el text= literal por el método
-        // =========================================================================
-        aplicarEstiloEstado(binding.tvEstadoAveriaDetalle, averia.estadoAveriaCalculado)
-
-        if (averia.intervenciones.isNotEmpty()) {
-            binding.tvIntervencionesLabel.visibility = View.VISIBLE
-            binding.tvIntervencionesLista.visibility = View.VISIBLE
-
-            // Unimos los elementos de la lista (aunque solo sea uno con todo el texto)
-            binding.tvIntervencionesLista.text = averia.intervenciones.joinToString("\n")
-        } else {
-            binding.tvIntervencionesLabel.visibility = View.GONE
-            binding.tvIntervencionesLista.visibility = View.GONE
-        }
-
-        // Lógica de visibilidad purgada de referencias a cambios de estado de maquinaria
-        when (averia.estadoAveriaCalculado) {
-            "Nueva" -> {
-                binding.btnAceptarAveria.visibility = View.VISIBLE
-                binding.btnFinalizarAveria.visibility = View.GONE
-                binding.btnRegistrarIntervencion.visibility = View.GONE
-            }
-            "Recibida", "Pendiente" -> {
-                binding.btnAceptarAveria.visibility = View.GONE
-                binding.btnFinalizarAveria.visibility = View.VISIBLE
-                binding.btnRegistrarIntervencion.visibility = View.VISIBLE
-            }
-            "Finalizada" -> {
-                binding.btnAceptarAveria.visibility = View.GONE
-                binding.btnFinalizarAveria.visibility = View.GONE
-                binding.btnRegistrarIntervencion.visibility = View.GONE
-            }
-        }
-    }
-
-    private fun deshabilitarBotones() {
-        binding.btnAceptarAveria.isEnabled = false
-        binding.btnFinalizarAveria.isEnabled = false
-    }
-
-    private fun restaurarBotones() {
-        binding.btnAceptarAveria.isEnabled = true
-        binding.btnFinalizarAveria.isEnabled = true
     }
 
     /**
-     * Aplica estilos dinámicos a la etiqueta de estado garantizando una rápida
-     * identificación visual por parte del técnico, mejorando la UX.
-     * @param tvEstado Referencia al TextView del layout que muestra el estado.
-     * @param textoEstado El texto literal del estado ("Nueva", "Recibida", etc.)
+     * Renderiza los datos de la entidad en los componentes de la vista.
+     * Implementa lógica de visibilidad condicional basada en el estado administrativo.
+     */
+    private fun poblarComponentesUI(averia: Averia) {
+        with(binding) {
+            tvTituloDetalle.text = averia.titulo
+            tvMaquinariaDetalle.text = averia.maquinaria
+            tvFechaAsignacionDetalle.text = getString(R.string.formato_fecha_asignacion, averia.fechaAsignacion ?: "Pendiente")
+            tvDescripcionDetalle.text = averia.descripcion
+
+            aplicarEstiloEstado(tvEstadoAveriaDetalle, averia.estadoAveriaCalculado)
+
+            // Gestión del historial de intervenciones
+            val tieneIntervenciones = averia.intervenciones.isNotEmpty()
+            tvIntervencionesLabel.visibility = if (tieneIntervenciones) View.VISIBLE else View.GONE
+            tvIntervencionesLista.visibility = if (tieneIntervenciones) View.VISIBLE else View.GONE
+
+            if (tieneIntervenciones) {
+                tvIntervencionesLista.text = averia.intervenciones.joinToString("\n")
+            }
+
+            gestionarVisibilidadAcciones(averia.estadoAveriaCalculado)
+        }
+    }
+
+    /**
+     * Controla la disponibilidad de botones según la fase del ciclo de vida de la avería.
+     */
+    private fun gestionarVisibilidadAcciones(estado: String) {
+        with(binding) {
+            when (estado) {
+                "Nueva" -> {
+                    btnAceptarAveria.visibility = View.VISIBLE
+                    btnFinalizarAveria.visibility = View.GONE
+                    btnRegistrarIntervencion.visibility = View.GONE
+                }
+                "Recibida", "Pendiente" -> {
+                    btnAceptarAveria.visibility = View.GONE
+                    btnFinalizarAveria.visibility = View.VISIBLE
+                    btnRegistrarIntervencion.visibility = View.VISIBLE
+                }
+                "Finalizada" -> {
+                    btnAceptarAveria.visibility = View.GONE
+                    btnFinalizarAveria.visibility = View.GONE
+                    btnRegistrarIntervencion.visibility = View.GONE
+                }
+            }
+        }
+    }
+
+    /**
+     * Aplica semántica de colores a la etiqueta de estado para facilitar la lectura rápida (UX).
      */
     private fun aplicarEstiloEstado(tvEstado: TextView, textoEstado: String) {
         tvEstado.text = textoEstado
-
-        // Usamos colores hexadecimales estándar de Material Design para un acabado profesional
-        val colorTexto = when (textoEstado.lowercase()) {
-            "nueva" -> Color.parseColor("#03A9F4")      // Azul Claro (Light Blue 500)
-            "recibida", "en curso", "pendiente" -> Color.parseColor("#1976D2") // Azul Oscuro (Blue 700)
-            "finalizada" -> Color.parseColor("#388E3C") // Verde (Green 700)
-            else -> Color.parseColor("#757575")         // Gris por defecto (Grey 600)
+        val colorRef = when (textoEstado.lowercase()) {
+            "nueva" -> "#03A9F4"
+            "recibida", "en curso", "pendiente" -> "#1976D2"
+            "finalizada" -> "#388E3C"
+            else -> "#757575"
         }
 
-        tvEstado.setTextColor(colorTexto)
+        val colorInt = Color.parseColor(colorRef)
+        tvEstado.setTextColor(colorInt)
+        tvEstado.setBackgroundColor(ColorUtils.setAlphaComponent(colorInt, 40))
+    }
 
-        // Aplicamos un fondo sutil con el mismo tono que el texto, pero con 15% de opacidad (40 en alpha)
-        val colorFondo = ColorUtils.setAlphaComponent(colorTexto, 40)
-        tvEstado.setBackgroundColor(colorFondo)
+    /**
+     * Orquesta la transición hacia el flujo de registro de actividad técnica.
+     */
+    private fun navegarARegistroIntervencion() {
+        val fragment = IntervencionFragment().apply {
+            arguments = Bundle().apply { putInt("id_averia", idAveriaActual) }
+        }
+
+        parentFragmentManager.beginTransaction()
+            .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
+            .replace(R.id.main_container, fragment)
+            .addToBackStack(null)
+            .commit()
+    }
+
+    private fun alternarInteractividad(activado: Boolean) {
+        binding.btnAceptarAveria.isEnabled = activado
+        binding.btnFinalizarAveria.isEnabled = activado
+    }
+
+    private fun procesarEventoFinalizacion(mensaje: String) {
+        Toast.makeText(requireContext(), mensaje, Toast.LENGTH_SHORT).show()
+        if (mensaje.contains("finalizado", ignoreCase = true)) {
+            parentFragmentManager.popBackStack()
+        } else {
+            viewModel.sincronizarConServidor(idAveriaActual)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (idAveriaActual != -1) viewModel.sincronizarConServidor(idAveriaActual)
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
-    }
-
-    /**
-     * Intercepta el regreso al primer plano de la vista para forzar una sincronización automática.
-     * Garantiza que si el técnico viene de registrar una intervención, vea el historial actualizado.
-     */
-    override fun onResume() {
-        super.onResume()
-        if (idActual != -1) {
-            viewModel.recargarDesdeRed(idActual)
-        }
-    }
-
-    /**
-     * Procesa la confirmación de acciones exitosas del servidor.
-     * Si la acción no implica el cierre de la pantalla, dispara una recarga de datos inmediata.
-     */
-    private fun handleAccionCompletada(message: String) {
-        Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
-
-        // Si el ciclo se ha cerrado, volvemos. Si solo se ha aceptado, refrescamos.
-        if (message.contains("finalizado", ignoreCase = true)) {
-            parentFragmentManager.popBackStack()
-        } else {
-            // Esto hará que desaparezca el botón 'Aceptar' y aparezca 'Intervención'
-            viewModel.recargarDesdeRed(idActual)
-        }
     }
 }

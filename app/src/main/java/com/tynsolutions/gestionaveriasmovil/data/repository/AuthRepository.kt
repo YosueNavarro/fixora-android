@@ -5,18 +5,22 @@ import com.tynsolutions.gestionaveriasmovil.data.network.SessionManager
 import com.tynsolutions.gestionaveriasmovil.data.network.dto.LoginRequest
 
 /**
- * Repositorio centralizado para gestionar la lógica de autenticación.
- * Actúa como única fuente de la verdad para el login, aislando a la UI
- * de la implementación de red.
+ * Repositorio de Dominio para la orquestación del flujo de Autenticación.
+ * Implementa el patrón Repository aislando los orígenes de datos (Network/Local)
+ * de la capa de presentación (UI/ViewModels), actuando como única fuente de la verdad.
  */
 class AuthRepository(
     private val apiService: ApiService,
     private val sessionManager: SessionManager
 ) {
     /**
-     * Realiza la petición de login al servidor.
-     * Retorna un Result<String> que contendrá "Éxito" si va bien,
-     * o una excepción con el mensaje de error si falla.
+     * Ejecuta la transacción de autenticación contra el servidor perimetral.
+     * En caso de éxito (HTTP 200), delega la persistencia de las credenciales
+     * al [SessionManager]. En caso de fallo, mapea los códigos HTTP a excepciones de Dominio.
+     *
+     * @param email Credencial de identidad del técnico.
+     * @param pass Credencial de acceso (Plaintext, delegando el cifrado de transporte al túnel TLS/HTTPS).
+     * @return [Result] encapsulando un mensaje de éxito o una excepción detallada y amigable para la UI.
      */
     suspend fun realizarLogin(email: String, pass: String): Result<String> {
         return try {
@@ -24,46 +28,40 @@ class AuthRepository(
             val response = apiService.login(request)
 
             if (response.isSuccessful) {
-                // Extraemos el cuerpo (Body) usando el DTO que acabamos de crear
                 val responseBody = response.body()
                 val token = responseBody?.token
                 val userId = responseBody?.usuario?.id
 
-                // Verificación de seguridad estricta: No damos por válido el login
-                // si el servidor no nos entrega las dos piezas clave.
+                // Auditoría de integridad de payload: Rechazamos respuestas HTTP 200
+                // que no contengan los artefactos criptográficos o relacionales necesarios.
                 if (!token.isNullOrEmpty() && userId != null) {
-                    // Guardamos el token y el ID de forma persistente y segura
                     sessionManager.saveAuthToken(token)
                     sessionManager.saveUserId(userId)
 
-                    Result.success("Login completado con éxito")
+                    Result.success("Autenticación completada con éxito")
                 } else {
-                    Result.failure(Exception("Vulnerabilidad o error de API: El servidor devolvió 200 OK, pero el token o el ID están vacíos."))
+                    Result.failure(Exception("Violación del contrato de red: Payload de autorización incompleto."))
                 }
             } else {
-                // ==========================================
-                // CAPTURA DE ERRORES DE NEGOCIO (UX)
-                // ==========================================
-
-                // Leemos el mensaje de error que nos manda NetBeans en el cuerpo de la respuesta
+                // Mapeo de errores de dominio basado en el contrato del backend
                 val errorBodyString = response.errorBody()?.string() ?: ""
 
-                // Buscamos la frase exacta que programó Nereida en su AuthService
+                // Evaluación de reglas de negocio específicas (Control de Acceso Basado en Roles - RBAC)
                 if (errorBodyString.contains("Tipo de usuario incorrecto", ignoreCase = true)) {
-                    Result.failure(Exception("Acceso denegado: Esta aplicación es exclusiva para el personal técnico (Mecánicos)."))
+                    Result.failure(Exception("Acceso denegado: Aplicación restringida a perfil Técnico/Mecánico."))
                 }
-                // Fallback clásico por si cambia el texto pero mantiene el código HTTP 401/403
+                // Mapeo estándar de errores HTTP 4xx (Unauthorized/Forbidden)
                 else if (response.code() == 401 || response.code() == 403) {
-                    Result.failure(Exception("Email o contraseña incorrectos."))
+                    Result.failure(Exception("Credenciales de acceso inválidas."))
                 }
-                // Cualquier otro error (500, 404...)
+                // Fallback para errores de servidor (HTTP 5xx) o no tipificados
                 else {
-                    Result.failure(Exception("Error en el servidor. Código: ${response.code()}"))
+                    Result.failure(Exception("Excepción en el servidor perimetral. Código HTTP: ${response.code()}"))
                 }
             }
         } catch (e: Exception) {
-            // Error de red (sin internet, servidor caído, timeout de OkHttp)
-            Result.failure(Exception("Error de conexión: Verifica tu acceso a internet o contacta con soporte."))
+            // Intercepción de fallos de infraestructura (Timeouts, DNS, pérdida de señal)
+            Result.failure(Exception("Fallo en la resolución de red. Verifique la conectividad del dispositivo."))
         }
     }
 }

@@ -10,8 +10,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Estados inmutables para gestionar el ciclo de vida de la petición de red.
- * Previene clics múltiples y permite manejar errores del servidor limpiamente.
+ * Jerarquía de estados inmutables para la gestión reactiva de la interfaz.
+ * Implementa el patrón State Pattern para garantizar que la vista solo reaccione
+ * a estados finitos y consistentes, mitigando condiciones de carrera.
  */
 sealed class CambiarEstadoUiState {
     object Idle : CambiarEstadoUiState()
@@ -21,47 +22,66 @@ sealed class CambiarEstadoUiState {
 }
 
 /**
- * Orquestador de la lógica de negocio para el cambio de estado físico de la maquinaria.
- * Aisla a la vista de la complejidad de corrutinas y llamadas de red.
+ * Orquestador de la lógica de presentación para la mutación del estatus operativo de maquinaria.
+ * Centraliza la gestión de corrutinas y la transformación de tipos para desacoplar
+ * la vista (Fragment) de las reglas de persistencia del Backend.
  */
 class CambiarEstadoViewModel(
     private val repository: AveriasRepository
 ) : ViewModel() {
 
+    // Encapsulamiento estricto: El MutableStateFlow es privado para evitar mutaciones externas
     private val _uiState = MutableStateFlow<CambiarEstadoUiState>(CambiarEstadoUiState.Idle)
     val uiState: StateFlow<CambiarEstadoUiState> = _uiState.asStateFlow()
 
     /**
-     * Transforma la selección humana en un código de estado válido para el backend
-     * y delega la ejecución al repositorio en un hilo secundario.
+     * Inicia la transacción asíncrona para actualizar el estatus físico del hardware.
+     * Gestiona el ciclo de vida de la corrutina vinculado al ViewModel, garantizando
+     * la cancelación automática si el usuario abandona la pantalla (Memory Safety).
+     *
+     * @param idMaquinaria Clave primaria del activo.
+     * @param estadoTexto Etiqueta descriptiva proveniente de la selección del usuario.
      */
     fun actualizarEstadoMaquinaria(idMaquinaria: Int, estadoTexto: String) {
         viewModelScope.launch {
             _uiState.value = CambiarEstadoUiState.Loading
 
-            // Mapeo defensivo: Convertimos el texto del RadioButton al ID esperado por el backend
-            // (Ajusta estos números según la tabla 'Estado' de tu base de datos)
-            val codigoEstado = when (estadoTexto) {
-                "Operativa" -> 1
-                "Averiada" -> 2
-                "En mantenimiento" -> 3
-                "Fuera de servicio" -> 4
-                else -> 2 // Fallback seguro
-            }
+            // Delegación del mapeo de dominio a código de catálogo (RBAC/Integridad)
+            val codigoEstado = mapearTextoACodigo(estadoTexto)
 
-            // Ejecución de la transacción de red
-            // NOTA: Asegúrate de tener este método implementado en tu AveriasRepository
+            // Consumo del servicio de dominio con gestión de resultados (Result Pattern)
             val result = repository.cambiarEstadoMaquinaria(idMaquinaria, codigoEstado)
 
             result.fold(
                 onSuccess = { _uiState.value = CambiarEstadoUiState.Success(it) },
-                onFailure = { _uiState.value = CambiarEstadoUiState.Error(it.message ?: "Fallo al comunicar con el servidor.") }
+                onFailure = { _uiState.value = CambiarEstadoUiState.Error(it.message ?: "Fallo crítico en la sincronización remota.") }
             )
         }
     }
 
     /**
-     * Factory obligatorio para inyectar el AveriasRepository
+     * Resetea el estado de la UI al valor inicial.
+     * Fundamental para limpiar buffers de error o éxito tras la interacción del usuario.
+     */
+    fun resetState() {
+        _uiState.value = CambiarEstadoUiState.Idle
+    }
+
+    /**
+     * Diccionario determinista de conversión entre la capa de presentación y el contrato de la base de datos.
+     * Centralizar el mapeo aquí previene la dispersión de IDs mágicos (Magic Numbers) por el código.
+     */
+    private fun mapearTextoACodigo(texto: String): Int = when (texto) {
+        "Operativa" -> 1
+        "Averiada" -> 2
+        "En mantenimiento" -> 3
+        "Fuera de servicio" -> 4
+        else -> 2 // Fallback defensivo: 'Averiada' ante ambigüedad
+    }
+
+    /**
+     * Factory de inyección de dependencias.
+     * Provee el repositorio necesario manteniendo el desacoplamiento entre capas.
      */
     class Factory(private val repository: AveriasRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
@@ -69,7 +89,7 @@ class CambiarEstadoViewModel(
             if (modelClass.isAssignableFrom(CambiarEstadoViewModel::class.java)) {
                 return CambiarEstadoViewModel(repository) as T
             }
-            throw IllegalArgumentException("Clase ViewModel desconocida")
+            throw IllegalArgumentException("Asignación de ViewModel inválida: Clase incompatible.")
         }
     }
 }
