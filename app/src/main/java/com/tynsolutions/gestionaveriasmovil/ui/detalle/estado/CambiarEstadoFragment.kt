@@ -8,36 +8,39 @@ import android.widget.RadioButton
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.tynsolutions.gestionaveriasmovil.R
+import com.tynsolutions.gestionaveriasmovil.data.local.AveriaCache
+import com.tynsolutions.gestionaveriasmovil.data.network.ApiClient
+import com.tynsolutions.gestionaveriasmovil.data.network.SessionManager
+import com.tynsolutions.gestionaveriasmovil.data.repository.AveriasRepository
 import com.tynsolutions.gestionaveriasmovil.databinding.FragmentCambiarEstadoBinding
+import kotlinx.coroutines.launch
 
 /**
- * Controlador de la interfaz de usuario para el Bloque 7.2 (Cambiar Estado Fragment)[cite: 63, 198].
- * Delega de forma transparente toda la lógica de negocio y persistencia al [CambiarEstadoViewModel].
+ * Controlador de la interfaz de usuario para la mutación del estatus operativo del hardware.
+ * Implementa un flujo reactivo basado en el estado del ViewModel (UI State) y garantiza
+ * la integridad de los datos mediante el uso de una caché compartida segura.
  */
 class CambiarEstadoFragment : Fragment() {
 
-    // Prevención de fugas de memoria (Memory Leaks) mediante manejo seguro del ciclo de vida del ViewBinding
     private var _binding: FragmentCambiarEstadoBinding? = null
     private val binding get() = _binding!!
 
-    // Inyección de dependencias del ViewModel ligado exclusivamente al ciclo de vida de este Fragmento
-    private val viewModel: CambiarEstadoViewModel by viewModels()
-
-    // Estado de navegación persistido
-    private var averiaId: Int = -1
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        // Deserialización segura de los argumentos de entrada
-        arguments?.let {
-            averiaId = it.getInt("AVERIA_ID")
-        }
+    /**
+     * Inyección de dependencias mediante Factory.
+     * Centraliza la instanciación de la infraestructura de red y datos en el ámbito del Fragment.
+     */
+    private val viewModel: CambiarEstadoViewModel by viewModels {
+        val session = SessionManager(requireContext())
+        val repository = AveriasRepository(ApiClient.getApiService(session), session)
+        CambiarEstadoViewModel.Factory(repository)
     }
 
     override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
         _binding = FragmentCambiarEstadoBinding.inflate(inflater, container, false)
         return binding.root
@@ -46,80 +49,97 @@ class CambiarEstadoFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Orquestación de la inicialización de la vista
-        cargarDatosUI()
-        setupListeners()
+        sincronizarContextoUI()
+        configurarObservadoresReactivos()
+        establecerInteraccionesUsuario()
     }
 
     /**
-     * Solicita los datos de la entidad a la capa lógica para inicializar el estado visual de los componentes.
+     * Sincroniza la vista con el contexto de la máquina seleccionada.
+     * Implementa una validación de integridad para prevenir estados nulos en la navegación.
      */
-    private fun cargarDatosUI() {
-        // Solicitud de estado delegado al ViewModel (Patrón MVVM estricto)
-        val averia = viewModel.obtenerAveria(averiaId)
-
-        averia?.let {
-            binding.tvNombreMaquinaActual.text = "Máquina: ${it.maquinaria}"
-
-            // Mapeo del estado del modelo de dominio al estado visual interactivo (RadioButtons)
-            when (it.estadoMaquinaria) {
-                "Averiada" -> binding.rbAveriada.isChecked = true
-                "En mantenimiento" -> binding.rbMantenimiento.isChecked = true
-                "Fuera de servicio" -> binding.rbFueraServicio.isChecked = true
-                "Operativa" -> binding.rbOperativa.isChecked = true
-            }
-        }
-    }
-
-    /**
-     * Registra los manejadores de eventos (Event Handlers) para capturar las intenciones del usuario.
-     */
-    private fun setupListeners() {
-        binding.btnVolver.setOnClickListener {
-            // Esto saca el fragmento actual de la pila y vuelve a la lista
+    private fun sincronizarContextoUI() {
+        val averia = AveriaCache.averiaSeleccionada
+        if (averia != null) {
+            // Uso de recursos formateados para cumplimiento de i18n/accesibilidad
+            binding.tvNombreMaquinaActual.text = getString(R.string.formato_nombre_maquina, averia.maquinaria)
+        } else {
+            // Recuperación ante fallos de integridad de memoria
+            Toast.makeText(requireContext(), "Fallo de integridad: Datos de sesión perdidos.", Toast.LENGTH_LONG).show()
             parentFragmentManager.popBackStack()
         }
+    }
 
-        binding.btnGuardarEstadoMaquina.setOnClickListener {
-            val selectedId = binding.rgEstadoMaquina.checkedRadioButtonId
-
-            // Early Return Pattern: Validación en la capa de vista antes de invocar lógica de negocio
-            if (selectedId != -1) {
-                val radioButton = binding.root.findViewById<RadioButton>(selectedId)
-                val nuevoEstado = radioButton.text.toString()
-
-                // Delegación de la mutación de estado al controlador lógico
-                val exito = viewModel.actualizarEstadoMaquinaria(averiaId, nuevoEstado)
-
-                if (exito) {
-                    Toast.makeText(requireContext(), "Estado actualizado a: $nuevoEstado", Toast.LENGTH_SHORT).show()
-                    // Retorno enrutado al flujo principal (Detalle de Avería) tras confirmar el éxito
-                    parentFragmentManager.popBackStack()
-                } else {
-                    Toast.makeText(requireContext(), "Error técnico al actualizar el estado", Toast.LENGTH_SHORT).show()
+    /**
+     * Suscripción al flujo de estado del ViewModel.
+     * Utiliza repeatOnLifecycle para optimizar el consumo de recursos y asegurar
+     * que la recolección de datos solo ocurra cuando la UI es visible.
+     */
+    private fun configurarObservadoresReactivos() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiState.collect { estado ->
+                    manejarCambioDeEstado(estado)
                 }
-            } else {
-                Toast.makeText(requireContext(), "Operación denegada: Seleccione un estado válido", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    companion object {
-        /**
-         * Factory Method Pattern.
-         * Garantiza una instanciación segura proporcionando una API tipada para inyectar
-         * dependencias (AVERIA_ID) en el Bundle del fragmento.
-         */
-        fun newInstance(id: Int) = CambiarEstadoFragment().apply {
-            arguments = Bundle().apply {
-                putInt("AVERIA_ID", id)
+    /**
+     * Orquestador visual de estados de red.
+     * Garantiza la retroalimentación inmediata al técnico y la protección de transacciones.
+     */
+    private fun manejarCambioDeEstado(estado: CambiarEstadoUiState) {
+        when (estado) {
+            is CambiarEstadoUiState.Loading -> {
+                // Prevención de Race Conditions: Bloqueo de entrada durante la transacción
+                binding.btnGuardarEstadoMaquina.isEnabled = false
             }
+            is CambiarEstadoUiState.Success -> {
+                Toast.makeText(requireContext(), estado.message, Toast.LENGTH_SHORT).show()
+                parentFragmentManager.popBackStack()
+            }
+            is CambiarEstadoUiState.Error -> {
+                binding.btnGuardarEstadoMaquina.isEnabled = true
+                Toast.makeText(requireContext(), estado.message, Toast.LENGTH_LONG).show()
+                viewModel.resetState() // Limpieza del buffer de error tras notificación
+            }
+            else -> Unit
+        }
+    }
+
+    /**
+     * Define los puntos de entrada de interacción física.
+     */
+    private fun establecerInteraccionesUsuario() {
+        binding.btnVolver.setOnClickListener { parentFragmentManager.popBackStack() }
+
+        binding.btnGuardarEstadoMaquina.setOnClickListener {
+            ejecutarAccionGuardar()
+        }
+    }
+
+    /**
+     * Captura la intención del técnico y la traslada a la capa de negocio.
+     */
+    private fun ejecutarAccionGuardar() {
+        val selectedId = binding.rgEstadoMaquina.checkedRadioButtonId
+
+        if (selectedId != -1) {
+            val radioButton = binding.root.findViewById<RadioButton>(selectedId)
+            val etiquetaEstado = radioButton.text.toString()
+
+            // Extracción segura de ID de maquinaria desde el Singleton de Caché
+            val idMaquina = AveriaCache.averiaSeleccionada?.id ?: return
+            viewModel.actualizarEstadoMaquinaria(idMaquina, etiquetaEstado)
+        } else {
+            Toast.makeText(requireContext(), "Debe seleccionar un estatus operativo válido.", Toast.LENGTH_SHORT).show()
         }
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        // Limpieza de referencias críticas en el desmontaje de la vista para evitar memory leaks
+        // Prevención de fugas de memoria mediante la anulación del binding
         _binding = null
     }
 }

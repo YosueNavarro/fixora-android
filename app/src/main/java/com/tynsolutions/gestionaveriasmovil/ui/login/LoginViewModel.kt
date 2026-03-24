@@ -1,60 +1,97 @@
 package com.tynsolutions.gestionaveriasmovil.ui.login
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
+import android.content.Context
 import androidx.lifecycle.ViewModel
-import com.tynsolutions.gestionaveriasmovil.domain.model.Usuario
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.tynsolutions.gestionaveriasmovil.data.network.ApiClient
+import com.tynsolutions.gestionaveriasmovil.data.network.SessionManager
+import com.tynsolutions.gestionaveriasmovil.data.repository.AuthRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /**
- * Capa de presentación (ViewModel) encargada de procesar las reglas de negocio
- * del flujo de autenticación y exponer el estado reactivo a la Vista.
+ * Jerarquía de estados inmutables para el flujo de autenticación.
+ * Garantiza que la vista reaccione de forma determinista ante el éxito,
+ * el fallo o la latencia de la red.
  */
-class LoginViewModel : ViewModel() {
+sealed class LoginUiState {
+    object Idle : LoginUiState()
+    object Loading : LoginUiState()
+    object Success : LoginUiState()
+    data class Error(val message: String) : LoginUiState()
+}
 
-    // --- Backing Properties ---
-    // Patrón arquitectónico para encapsular la mutabilidad del estado.
-    // _loginExitoso permite lectura/escritura interna. loginExitoso expone solo lectura a la Vista.
-    private val _loginExitoso = MutableLiveData<Boolean>()
-    val loginExitoso: LiveData<Boolean> get() = _loginExitoso
+/**
+ * Orquestador de la lógica de presentación para el control de acceso.
+ * Implementa el patrón Unidirectional Data Flow (UDF) para gestionar las credenciales
+ * y asegurar la persistencia de la sesión mediante la capa de Dominio.
+ */
+class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
 
-    private val _mensajeError = MutableLiveData<String>()
-    val mensajeError: LiveData<String> get() = _mensajeError
+    // Encapsulamiento del estado: El estado interno es mutable, pero se expone como inmutable (Read-only).
+    private val _uiState = MutableStateFlow<LoginUiState>(LoginUiState.Idle)
+    val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
     /**
-     * Valida las credenciales ingresadas aplicando reglas de negocio locales o remotas.
+     * Valida y procesa la intención de acceso del usuario.
+     * Implementa un patrón de validación temprana (Fail-fast) para minimizar
+     * las peticiones innecesarias al servidor perimetral.
      *
-     * @param emailInput Correo electrónico ingresado por el usuario.
-     * @param passwordInput Contraseña ingresada por el usuario.
+     * @param email Correo electrónico sanitizado.
+     * @param password Contraseña para verificación criptográfica en servidor.
      */
-    fun validarLogin(emailInput: String, passwordInput: String) {
-        // 1. Sanitización y validación de capa de vista (Early return pattern).
-        if (emailInput.isBlank() || passwordInput.isBlank()) {
-            _mensajeError.value = "Por favor, rellena todos los campos"
+    fun intentarLogin(email: String, password: String) {
+        // 1. Validación de integridad de entrada en capa de presentación
+        if (email.isBlank() || password.isBlank()) {
+            _uiState.value = LoginUiState.Error("Identidad y credenciales son obligatorias.")
             return
         }
 
-        // 2. Mocking de Data Source (Fase 1).
-        // Nota técnica: En futuras iteraciones, esto será sustituido por un UseCase o Repository.
-        val usuarioSimulado = Usuario(
-            email = "tecnico@taller.com",
-            password = "1234",
-            activo = true
-        )
+        viewModelScope.launch {
+            // 2. Transición a estado de bloqueo de UI (Indempotencia)
+            _uiState.value = LoginUiState.Loading
 
-        // 3. Evaluación de reglas de negocio cruzadas (Credenciales + Estado de la cuenta).
-        if (emailInput == usuarioSimulado.email && passwordInput == usuarioSimulado.password) {
+            // 3. Delegación de la transacción de seguridad al repositorio de dominio
+            val resultado = repository.realizarLogin(email, password)
 
-            if (!usuarioSimulado.activo) {
-                // Notificación de estado denegado (Regla de negocio: cuenta inactiva).
-                _mensajeError.value = "Usuario inactivo"
-            } else {
-                // Emisión de evento de éxito.
-                _loginExitoso.value = true
+            // 4. Mapeo del resultado de red a estados de interfaz
+            resultado.fold(
+                onSuccess = {
+                    _uiState.value = LoginUiState.Success
+                },
+                onFailure = { excepcion ->
+                    _uiState.value = LoginUiState.Error(
+                        excepcion.message ?: "Error de protocolo: Fallo en la comunicación con el servicio de identidad."
+                    )
+                }
+            )
+        }
+    }
+
+    /**
+     * Resetea el estado para permitir nuevos intentos tras un error de validación.
+     */
+    fun resetEstado() {
+        _uiState.value = LoginUiState.Idle
+    }
+
+    /**
+     * Factory de inyección de dependencias.
+     * Centraliza la construcción del grafo de objetos (Inversión de Control).
+     */
+    class Factory(private val context: Context) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(LoginViewModel::class.java)) {
+                val sessionManager = SessionManager(context)
+                val apiService = ApiClient.getApiService(sessionManager)
+                val repository = AuthRepository(apiService, sessionManager)
+                return LoginViewModel(repository) as T
             }
-
-        } else {
-            // Emisión de evento de fallo de autenticación.
-            _mensajeError.value = "Usuario o contraseña incorrectos"
+            throw IllegalArgumentException("Fallo en la resolución: Clase de ViewModel no registrada.")
         }
     }
 }

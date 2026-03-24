@@ -2,96 +2,108 @@ package com.tynsolutions.gestionaveriasmovil.ui.listado
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.core.graphics.ColorUtils
+import androidx.core.graphics.toColorInt
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.tynsolutions.gestionaveriasmovil.databinding.ItemAveriaBinding
 import com.tynsolutions.gestionaveriasmovil.domain.model.Averia
 
 /**
- * Adaptador para el RecyclerView del listado de averías.
- * Implementa el patrón Adapter para actuar como puente entre la colección de datos (Domain)
- * y las vistas reciclables (UI).
- *
- * @property listaAverias Dataset inicial que alimentará el listado.
- * @property onAveriaClick Función de orden superior (Higher-Order Function) que delega
- * la responsabilidad del evento click a la capa superior (Fragmento).
+ * Adaptador de alto rendimiento para la renderización de incidencias técnicas.
+ * Implementa [DiffUtil] para optimizar los ciclos de refresco de la UI y garantizar
+ * una experiencia de usuario fluida (60 FPS) durante el scroll y filtrado.
  */
 class AveriasAdapter(
-    private var listaAverias: List<Averia>,
-    private val onAveriaClick: (Int) -> Unit
+    private var listaAverias: List<Averia> = emptyList(),
+    private val onAveriaClick: (Averia) -> Unit
 ) : RecyclerView.Adapter<AveriasAdapter.AveriaViewHolder>() {
 
     /**
-     * ViewHolder interno que almacena y recicla las referencias a las vistas de un ítem.
-     * Al usar ViewBinding garantizamos Null Safety y Type Safety en la UI.
+     * ViewHolder especializado en la vinculación de datos de dominio.
+     * Mantiene las referencias a las vistas mediante ViewBinding para evitar el coste
+     * computacional de 'findViewById'.
      */
-    inner class AveriaViewHolder(private val binding: ItemAveriaBinding) : RecyclerView.ViewHolder(binding.root) {
+    inner class AveriaViewHolder(private val binding: ItemAveriaBinding) :
+        RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(averia: Averia) {
+            with(binding) {
+                tvTituloAveria.text = averia.titulo
+                tvMaquinaria.text = averia.maquinaria
+                tvFecha.text = averia.fechaInforme
+
+                // Gestión de la identidad visual del estado
+                configurarBadgeEstado(averia.estadoAveriaCalculado)
+
+                root.setOnClickListener { onAveriaClick(averia) }
+            }
+        }
 
         /**
-         * Función de renderizado (Bind). Mapea los atributos de la entidad de dominio
-         * hacia los componentes visuales del layout.
-         *
-         * @param averia Instancia del modelo de dominio a representar.
+         * Aplica la semántica de colores según el estado administrativo.
+         * Nota: En entornos de producción, estos colores deberían provenir de atributos
+         * de tema (Surface/OnSurface) para soportar Modo Oscuro dinámico.
          */
-        fun bind(averia: Averia) {
-            // Inyección directa de datos simples
-            binding.tvTituloAveria.text = averia.titulo
+        private fun configurarBadgeEstado(estado: String) {
+            val colorHex = when (estado.lowercase()) {
+                "nueva" -> "#03A9F4"      // Light Blue 500
+                "finalizada" -> "#2E7D32" // Green 800
+                else -> "#1976D2"         // Blue 700 (Recibidas/Pendientes)
+            }
 
-            // Composición de strings para presentación UX: Nombre + [Estado Físico]
-            binding.tvMaquinaria.text = "${averia.maquinaria} (${averia.estadoMaquinaria})"
-
-            // Null-safety handling: Uso del operador Elvis (?:) para proveer un fallback
-            // en caso de que la entidad no tenga fecha de asignación.
-            binding.tvFecha.text = averia.fechaAsignacion ?: "Sin asignar"
-
-            // Mapeo de propiedad calculada (regla de negocio de UI)
-            binding.tvEstado.text = averia.estadoAveriaCalculado
-
-            // Event Routing: Interceptamos el evento de UI a nivel de raíz (ConstraintLayout/CardView)
-            // y lo despachamos hacia la función inyectada por el constructor.
-            binding.root.setOnClickListener {
-                onAveriaClick(averia.id)
+            val colorInt = colorHex.toColorInt()
+            binding.tvEstado.apply {
+                text = estado
+                setTextColor(colorInt)
+                // Aplicamos un fondo sutil (15% opacidad) para mejorar la jerarquía visual
+                setBackgroundColor(ColorUtils.setAlphaComponent(colorInt, 40))
             }
         }
     }
 
-    /**
-     * Invocado por el LayoutManager para instanciar una nueva vista cuando no hay suficientes
-     * vistas recicladas disponibles en la caché del RecyclerView.
-     */
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AveriaViewHolder {
-        // Inflamos el layout asociado utilizando el contexto del ViewGroup padre
-        val binding = ItemAveriaBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        val binding = ItemAveriaBinding.inflate(
+            LayoutInflater.from(parent.context), parent, false
+        )
         return AveriaViewHolder(binding)
     }
 
-    /**
-     * Invocado por el LayoutManager para reemplazar el contenido de una vista reciclada
-     * con los datos de un elemento específico del dataset.
-     */
     override fun onBindViewHolder(holder: AveriaViewHolder, position: Int) {
-        val averiaActual = listaAverias[position]
-        holder.bind(averiaActual)
+        holder.bind(listaAverias[position])
     }
 
-    /**
-     * Retorna el tamaño total del dataset actual. Vital para que el RecyclerView
-     * sepa cuántos elementos debe iterar.
-     */
-    override fun getItemCount(): Int {
-        return listaAverias.size
-    }
+    override fun getItemCount(): Int = listaAverias.size
 
     /**
-     * Mutador del estado interno del adaptador.
-     * Actualiza la colección en memoria y fuerza un repintado de la lista completa.
-     *
-     * @param nuevaLista Nuevo dataset filtrado o actualizado.
-     * * Nota técnica: Para listas masivas en producción, se recomienda refactorizar
-     * usando 'DiffUtil' o 'ListAdapter' en lugar de 'notifyDataSetChanged()' para
-     * calcular solo las diferencias y optimizar el rendimiento.
+     * Actualiza la colección de datos utilizando el algoritmo de diferencia de Myers.
+     * Esta operación es atómica y despacha notificaciones específicas (ItemChanged,
+     * ItemInserted, etc.) al RecyclerView.
      */
     fun actualizarLista(nuevaLista: List<Averia>) {
-        listaAverias = nuevaLista
-        notifyDataSetChanged()
+        val diffCallback = AveriaDiffCallback(listaAverias, nuevaLista)
+        val diffResult = DiffUtil.calculateDiff(diffCallback)
+
+        this.listaAverias = nuevaLista
+        diffResult.dispatchUpdatesTo(this)
+    }
+
+    /**
+     * Utilidad interna para el cálculo de diferencias entre colecciones de averías.
+     */
+    private class AveriaDiffCallback(
+        private val oldList: List<Averia>,
+        private val newList: List<Averia>
+    ) : DiffUtil.Callback() {
+        override fun getOldListSize(): Int = oldList.size
+        override fun getNewListSize(): Int = newList.size
+
+        override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+            return oldList[oldItemPosition].id == newList[newItemPosition].id
+        }
+
+        override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+            return oldList[oldItemPosition] == newList[newItemPosition]
+        }
     }
 }

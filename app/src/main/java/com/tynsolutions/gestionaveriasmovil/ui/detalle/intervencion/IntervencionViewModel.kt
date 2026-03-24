@@ -1,35 +1,87 @@
 package com.tynsolutions.gestionaveriasmovil.ui.detalle.intervencion
 
 import androidx.lifecycle.ViewModel
-import com.tynsolutions.gestionaveriasmovil.data.local.FakeDataSource
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.tynsolutions.gestionaveriasmovil.data.repository.AveriasRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /**
- * Controlador lógico (ViewModel) para el caso de uso CU04: Registrar Intervención.
- * Actúa como intermediario entre la vista y el origen de datos, garantizando
- * el cumplimiento del principio de responsabilidad única (SRP) dentro de la arquitectura MVVM.
+ * Jerarquía de estados inmutables para el flujo de registro de intervenciones.
+ * Define un modelo determinista para la gestión de transacciones de red y feedback al operario.
  */
-class IntervencionViewModel : ViewModel() {
+sealed class IntervencionUiState {
+    object Idle : IntervencionUiState()
+    object Loading : IntervencionUiState()
+    data class Success(val message: String) : IntervencionUiState()
+    data class Error(val message: String) : IntervencionUiState()
+}
+
+/**
+ * Orquestador de lógica de presentación para el registro de informes técnicos.
+ * Gestiona la validación de entrada y la persistencia asíncrona mediante el patrón Repository.
+ */
+class IntervencionViewModel(
+    private val repository: AveriasRepository
+) : ViewModel() {
+
+    // Encapsulamiento de estado reactivo mediante StateFlow
+    private val _uiState = MutableStateFlow<IntervencionUiState>(IntervencionUiState.Idle)
+    val uiState: StateFlow<IntervencionUiState> = _uiState.asStateFlow()
 
     /**
-     * Ejecuta la lógica del Bloque 7.1 correspondiente a la Fase 1:
-     * agregar la intervención a la lista local.
-     * * Nota Arquitectónica (Fase 2): Este método será refactorizado para consumir
-     * el endpoint POST /averias/{id}/intervenciones mediante Retrofit.
+     * Inicia la transacción asíncrona para la persistencia del informe técnico.
+     * Implementa una validación previa (Fail-fast) para asegurar el cumplimiento normativo
+     * antes de comprometer recursos de red.
      *
-     * @param averiaId Identificador primario de la avería sobre la que se opera.
-     * @param texto Descripción detallada de las tareas ejecutadas por el técnico.
-     * @return true si la persistencia en memoria fue exitosa, false si la entidad no fue localizada.
+     * @param idAveria Clave primaria de la incidencia objetivo.
+     * @param texto Cuerpo descriptivo del procedimiento técnico realizado.
      */
-    fun guardarIntervencion(averiaId: Int, texto: String): Boolean {
-        // Único punto de acceso autorizado al Mock Data Source para esta transacción
-        val averia = FakeDataSource.averias.find { it.id == averiaId }
+    fun registrarIntervencion(idAveria: Int, texto: String) {
+        // Validación de integridad de datos en la capa de presentación
+        if (texto.isBlank()) {
+            _uiState.value = IntervencionUiState.Error("La descripción del procedimiento es obligatoria para la trazabilidad.")
+            return
+        }
 
-        return if (averia != null) {
-            // Mutación controlada del estado interno de la entidad
-            averia.intervenciones.add(texto)
-            true // Transacción local completada con éxito
-        } else {
-            false // Operación abortada: Entidad no encontrada en el origen de datos
+        viewModelScope.launch {
+            _uiState.value = IntervencionUiState.Loading
+
+            // Delegación de la persistencia a la capa de datos
+            val result = repository.registrarIntervencion(idAveria, texto)
+
+            result.fold(
+                onSuccess = {
+                    _uiState.value = IntervencionUiState.Success("Informe técnico sincronizado correctamente.")
+                },
+                onFailure = {
+                    _uiState.value = IntervencionUiState.Error(it.message ?: "Fallo crítico en la sincronización del registro.")
+                }
+            )
+        }
+    }
+
+    /**
+     * Purga el estado actual de la UI.
+     * Utilizado para limpiar mensajes de error o éxito tras la interacción del usuario.
+     */
+    fun resetState() {
+        _uiState.value = IntervencionUiState.Idle
+    }
+
+    /**
+     * Factory de inyección de dependencias para la instanciación del ViewModel.
+     */
+    class Factory(private val repository: AveriasRepository) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(IntervencionViewModel::class.java)) {
+                return IntervencionViewModel(repository) as T
+            }
+            throw IllegalArgumentException("Asignación de ViewModel inválida: Clase incompatible.")
         }
     }
 }

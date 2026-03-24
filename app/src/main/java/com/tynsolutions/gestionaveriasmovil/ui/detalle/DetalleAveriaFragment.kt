@@ -1,38 +1,47 @@
 package com.tynsolutions.gestionaveriasmovil.ui.detalle
 
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
+import android.widget.Toast
+import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.tynsolutions.gestionaveriasmovil.R
+import com.tynsolutions.gestionaveriasmovil.data.network.ApiClient
+import com.tynsolutions.gestionaveriasmovil.data.network.SessionManager
+import com.tynsolutions.gestionaveriasmovil.data.repository.AveriasRepository
 import com.tynsolutions.gestionaveriasmovil.databinding.FragmentDetalleAveriaBinding
-import com.tynsolutions.gestionaveriasmovil.ui.detalle.estado.CambiarEstadoFragment
+import com.tynsolutions.gestionaveriasmovil.domain.model.Averia
 import com.tynsolutions.gestionaveriasmovil.ui.detalle.intervencion.IntervencionFragment
+import kotlinx.coroutines.launch
 
+/**
+ * Controlador de vista para el detalle exhaustivo de incidencias.
+ * Implementa el patrón Observer para reaccionar a los cambios de estado del ViewModel
+ * y gestiona la máquina de estados visual para la botonera de acción técnica.
+ */
 class DetalleAveriaFragment : Fragment() {
 
-    // Gestión del ciclo de vida del ViewBinding (prevención de Memory Leaks).
     private var _binding: FragmentDetalleAveriaBinding? = null
     private val binding get() = _binding!!
 
-    // Inyección del ViewModel ligado al ciclo de vida de este Fragmento.
-    private val viewModel: DetalleViewModel by viewModels()
-
-    // Argumento de navegación persistido.
-    private var averiaId: Int = -1
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        // Deserialización de los argumentos inyectados vía Factory Method.
-        arguments?.let {
-            averiaId = it.getInt("AVERIA_ID")
-        }
+    private val viewModel: DetalleViewModel by viewModels {
+        val session = SessionManager(requireContext())
+        val repository = AveriasRepository(ApiClient.getApiService(session), session)
+        DetalleViewModel.Factory(repository)
     }
 
+    private var idAveriaActual: Int = -1
+
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
         _binding = FragmentDetalleAveriaBinding.inflate(inflater, container, false)
         return binding.root
@@ -40,189 +49,159 @@ class DetalleAveriaFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        // Suscripción al estado del ViewModel antes de solicitar los datos.
-        setupObservers()
-
-        //Centralizamos todos los eventos de interacción del usuario.
-        setupListeners()
-
-        // Despachamos el evento de inicialización hacia la capa lógica.
-        if (averiaId != -1) {
-            viewModel.cargarAveria(averiaId)
-        }
+        configurarObservadores()
+        configurarManejadoresEventos()
     }
 
     /**
-     * Configura el binding reactivo entre el estado emitido por el ViewModel y la UI.
+     * Suscripción reactiva al flujo de estados de la UI.
+     * Garantiza la coherencia visual entre los datos en caché y las actualizaciones remotas.
      */
-    private fun setupObservers() {
-        // El Observer reacciona automáticamente cuando el ViewModel encuentra la avería.
-        viewModel.averia.observe(viewLifecycleOwner) { averia ->
-            renderizarUI(averia)
-        }
-    }
-
-    /**
-     * Mapea los eventos de la interfaz (clics) hacia intenciones en la capa lógica o de navegación.
-     */
-    private fun setupListeners() {
-        // CU03: Acción de Aceptar Avería (Lógica delegada al ViewModel)
-        binding.btnAceptarAveria.setOnClickListener {
-            viewModel.aceptarAveria(averiaId)
-        }
-
-        // CU04: Acción de Registrar Intervención (Navegación)
-        binding.btnRegistrarIntervencion.setOnClickListener {
-            val fragmentIntervencion = IntervencionFragment.newInstance(averiaId)
-
-            parentFragmentManager.beginTransaction()
-                .replace(com.tynsolutions.gestionaveriasmovil.R.id.main_container, fragmentIntervencion)
-                .addToBackStack(null)
-                .commit()
-        }
-
-        // CU05: Acción de Cambiar Estado de la Maquinaria (Navegación)
-        binding.btnCambiarEstado.setOnClickListener {
-            // Instanciamos el fragmento destino inyectando el ID de la avería
-            val fragmentEstado = CambiarEstadoFragment.newInstance(averiaId)
-
-            // Ejecutamos la transacción para cambiar de pantalla
-            parentFragmentManager.beginTransaction()
-                .replace(com.tynsolutions.gestionaveriasmovil.R.id.main_container, fragmentEstado)
-                .addToBackStack(null)
-                .commit()
-        }
-
-        // CU06: Acción de Finalizar Avería
-        binding.btnFinalizarAveria.setOnClickListener {
-            mostrarDialogoFinalizacion()
-        }
-    }
-
-    /**
-     * CU06: Finalizar Avería.
-     * Valida instantáneamente el estado de la máquina antes de permitir el cierre de la avería.
-     */
-    private fun mostrarDialogoFinalizacion() {
-        val averiaActual = viewModel.averia.value
-        val estadoMaquinaria = averiaActual?.estadoMaquinaria // "Averiada", "Operativa", etc.
-
-        // 1. VALIDACIÓN INSTANTÁNEA
-        // Si la máquina sigue "Averiada" o "En mantenimiento", no dejamos finalizar
-        if (estadoMaquinaria != "Operativa" && estadoMaquinaria != "Fuera de servicio") {
-            android.app.AlertDialog.Builder(requireContext())
-                .setTitle("Atención: Máquina en mal estado")
-                .setMessage("No puedes finalizar la avería si la máquina está: $estadoMaquinaria.\n\n" +
-                        "Primero debes marcarla como 'Operativa' o 'Fuera de servicio' en la sección anterior.")
-                .setPositiveButton("Entendido", null)
-                .show()
-        }
-        else {
-            // 2. SI LA VALIDACIÓN PASA: Pedimos confirmación para cerrar la gestión
-            android.app.AlertDialog.Builder(requireContext())
-                .setTitle("Finalizar Gestión")
-                .setMessage("¿Confirmas que los trabajos han terminado? La avería se archivará como Finalizada.")
-                .setPositiveButton("Sí, finalizar") { _, _ ->
-                    viewModel.finalizarAveria(averiaId)
+    private fun configurarObservadores() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiState.collect { estado ->
+                    when (estado) {
+                        is DetalleUiState.Loading -> alternarInteractividad(false)
+                        is DetalleUiState.Success -> {
+                            idAveriaActual = estado.averia.id
+                            alternarInteractividad(true)
+                            poblarComponentesUI(estado.averia)
+                        }
+                        is DetalleUiState.Error -> {
+                            alternarInteractividad(true)
+                            Toast.makeText(requireContext(), estado.message, Toast.LENGTH_LONG).show()
+                        }
+                        is DetalleUiState.AccionCompletada -> procesarEventoFinalizacion(estado.message)
+                    }
                 }
-                .setNegativeButton("Cancelar", null)
-                .show()
+            }
         }
     }
 
     /**
-     * Función pura de renderizado. Mapea las propiedades del modelo de dominio
-     * a los componentes visuales del layout.
+     * Establece los listeners para la interacción del técnico.
      */
-    private fun renderizarUI(averia: com.tynsolutions.gestionaveriasmovil.domain.model.Averia) {
-        binding.tvTituloDetalle.text = averia.titulo
+    private fun configurarManejadoresEventos() {
+        binding.btnVolver.setOnClickListener { parentFragmentManager.popBackStack() }
 
-        // Formateo de presentación visual: Entidad + Estado de la máquina.
-        binding.tvMaquinariaDetalle.text = "${averia.maquinaria} - [${averia.estadoMaquinaria}]"
-
-        // Mapeo de propiedad calculada.
-        binding.tvEstadoDetalle.text = "Estado avería: ${averia.estadoAveriaCalculado}"
-
-        // Lógica de presentación de fechas basada en nullabilidad.
-        val fechaMostrar = averia.fechaAsignacion ?: averia.fechaInforme
-        binding.tvFechaDetalle.text = "Fecha de asignación: $fechaMostrar"
-
-        binding.tvDescripcionDetalle.text = averia.descripcion
-
-        // Renderizado dinámico del historial de intervenciones
-        if (averia.intervenciones.isEmpty()) {
-            // Si no hay historial, ocultamos la sección
-            binding.separadorIntervenciones.visibility = View.GONE
-            binding.tvIntervencionesLabel.visibility = View.GONE
-            binding.tvIntervencionesLista.visibility = View.GONE
-        } else {
-            // Si hay datos, los mostramos formateados con viñetas (bullets)
-            binding.separadorIntervenciones.visibility = View.VISIBLE
-            binding.tvIntervencionesLabel.visibility = View.VISIBLE
-            binding.tvIntervencionesLista.visibility = View.VISIBLE
-
-            // Transformamos la lista en un único String unido por saltos de línea
-            val historialFormateado = averia.intervenciones.joinToString(separator = "\n\n") { comentario ->
-                "• $comentario"
-            }
-            binding.tvIntervencionesLista.text = historialFormateado
-
-
+        binding.btnAceptarAveria.setOnClickListener {
+            if (idAveriaActual != -1) viewModel.aceptarAveria(idAveriaActual)
         }
 
-        // Máquina de estados para la visibilidad de componentes
-        when (averia.estadoAveriaCalculado) {
-            "Nueva" -> {
-                // Acciones
-                binding.btnAceptarAveria.visibility = View.VISIBLE
-                binding.btnRegistrarIntervencion.visibility = View.GONE
-                binding.btnFinalizarAveria.visibility = View.GONE
-
-                // Colores y Textos Fixora
-                binding.tvEstadoDetalle.setTextColor(android.graphics.Color.parseColor("#3A75B5"))
-                binding.tvEstadoDetalle.setBackgroundColor(android.graphics.Color.parseColor("#EDF3FB"))
-            }
-            "Recibida", "En proceso" -> {
-                // Acciones
-                binding.btnAceptarAveria.visibility = View.GONE
-                binding.btnRegistrarIntervencion.visibility = View.VISIBLE
-                binding.btnCambiarEstado.visibility = View.VISIBLE
-                binding.btnFinalizarAveria.visibility = View.VISIBLE
-
-                // Colores azul (En curso)
-                binding.tvEstadoDetalle.setTextColor(android.graphics.Color.parseColor("#512DA8"))
-                binding.tvEstadoDetalle.setBackgroundColor(android.graphics.Color.parseColor("#EDE7F6"))
-            }
-            "Finalizada" -> {
-                // Acciones
-                binding.layoutAcciones.visibility = View.GONE
-
-                // Colores Verde (Éxito/Cerrado)
-                binding.tvEstadoDetalle.setTextColor(android.graphics.Color.parseColor("#2E7D32"))
-                binding.tvEstadoDetalle.setBackgroundColor(android.graphics.Color.parseColor("#E8F5E9"))
-            }
+        binding.btnFinalizarAveria.setOnClickListener {
+            if (idAveriaActual != -1) viewModel.finalizarAveria(idAveriaActual)
         }
 
-        binding.btnVolver.setOnClickListener {
-            // Esto saca el fragmento actual de la pila y vuelve a la lista
+        binding.btnRegistrarIntervencion.setOnClickListener {
+            navegarARegistroIntervencion()
+        }
+    }
+
+    /**
+     * Renderiza los datos de la entidad en los componentes de la vista.
+     * Implementa lógica de visibilidad condicional basada en el estado administrativo.
+     */
+    private fun poblarComponentesUI(averia: Averia) {
+        with(binding) {
+            tvTituloDetalle.text = averia.titulo
+            tvMaquinariaDetalle.text = averia.maquinaria
+            tvFechaAsignacionDetalle.text = getString(R.string.formato_fecha_asignacion, averia.fechaAsignacion ?: "Pendiente")
+            tvDescripcionDetalle.text = averia.descripcion
+
+            aplicarEstiloEstado(tvEstadoAveriaDetalle, averia.estadoAveriaCalculado)
+
+            // Gestión del historial de intervenciones
+            val tieneIntervenciones = averia.intervenciones.isNotEmpty()
+            tvIntervencionesLabel.visibility = if (tieneIntervenciones) View.VISIBLE else View.GONE
+            tvIntervencionesLista.visibility = if (tieneIntervenciones) View.VISIBLE else View.GONE
+
+            if (tieneIntervenciones) {
+                tvIntervencionesLista.text = averia.intervenciones.joinToString("\n")
+            }
+
+            gestionarVisibilidadAcciones(averia.estadoAveriaCalculado)
+        }
+    }
+
+    /**
+     * Controla la disponibilidad de botones según la fase del ciclo de vida de la avería.
+     */
+    private fun gestionarVisibilidadAcciones(estado: String) {
+        with(binding) {
+            when (estado) {
+                "Nueva" -> {
+                    btnAceptarAveria.visibility = View.VISIBLE
+                    btnFinalizarAveria.visibility = View.GONE
+                    btnRegistrarIntervencion.visibility = View.GONE
+                }
+                "Recibida", "Pendiente" -> {
+                    btnAceptarAveria.visibility = View.GONE
+                    btnFinalizarAveria.visibility = View.VISIBLE
+                    btnRegistrarIntervencion.visibility = View.VISIBLE
+                }
+                "Finalizada" -> {
+                    btnAceptarAveria.visibility = View.GONE
+                    btnFinalizarAveria.visibility = View.GONE
+                    btnRegistrarIntervencion.visibility = View.GONE
+                }
+            }
+        }
+    }
+
+    /**
+     * Aplica semántica de colores a la etiqueta de estado para facilitar la lectura rápida (UX).
+     */
+    private fun aplicarEstiloEstado(tvEstado: TextView, textoEstado: String) {
+        tvEstado.text = textoEstado
+        val colorRef = when (textoEstado.lowercase()) {
+            "nueva" -> "#03A9F4"
+            "recibida", "en curso", "pendiente" -> "#1976D2"
+            "finalizada" -> "#388E3C"
+            else -> "#757575"
+        }
+
+        val colorInt = Color.parseColor(colorRef)
+        tvEstado.setTextColor(colorInt)
+        tvEstado.setBackgroundColor(ColorUtils.setAlphaComponent(colorInt, 40))
+    }
+
+    /**
+     * Orquesta la transición hacia el flujo de registro de actividad técnica.
+     */
+    private fun navegarARegistroIntervencion() {
+        val fragment = IntervencionFragment().apply {
+            arguments = Bundle().apply { putInt("id_averia", idAveriaActual) }
+        }
+
+        parentFragmentManager.beginTransaction()
+            .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
+            .replace(R.id.main_container, fragment)
+            .addToBackStack(null)
+            .commit()
+    }
+
+    private fun alternarInteractividad(activado: Boolean) {
+        binding.btnAceptarAveria.isEnabled = activado
+        binding.btnFinalizarAveria.isEnabled = activado
+    }
+
+    private fun procesarEventoFinalizacion(mensaje: String) {
+        Toast.makeText(requireContext(), mensaje, Toast.LENGTH_SHORT).show()
+        if (mensaje.contains("finalizado", ignoreCase = true)) {
             parentFragmentManager.popBackStack()
+        } else {
+            viewModel.sincronizarConServidor(idAveriaActual)
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (idAveriaActual != -1) viewModel.sincronizarConServidor(idAveriaActual)
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        // Liberación explícita de referencias UI.
         _binding = null
-    }
-
-    // Factory Method Pattern: Provee una API limpia para la instanciación de este Fragmento
-    // garantizando la inyección segura de sus dependencias (argumentos).
-    companion object {
-        fun newInstance(idAveria: Int) = DetalleAveriaFragment().apply {
-            arguments = Bundle().apply {
-                putInt("AVERIA_ID", idAveria)
-            }
-        }
     }
 }

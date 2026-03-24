@@ -2,17 +2,20 @@
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/fondo_interfaz_android"
-    android:padding="16dp">
+    android:padding="16dp"
+    tools:context=".ui.listado.ListadoAveriasFragment">
 
     <ImageView
         android:id="@+id/ivHeaderLogo"
         android:layout_width="140dp"
         android:layout_height="40dp"
-        android:src="@drawable/logo_app_android"
+        android:contentDescription="@null"
         android:scaleType="fitCenter"
+        android:src="@drawable/logo_app_android"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -21,80 +24,82 @@
         android:id="@+id/layoutFiltros"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:layout_marginTop="20dp"
         android:gravity="center_vertical"
-        android:layout_marginTop="16dp"
+        android:orientation="horizontal"
         app:layout_constraintTop_toBottomOf="@id/ivHeaderLogo">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnFiltroNuevas"
             style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-            android:layout_width="16dp"
-            android:layout_height="match_parent"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
             android:layout_marginEnd="4dp"
             android:layout_weight="1"
-            android:text="Nuevas"
+            android:text="@string/nuevas"
             android:textAllCaps="false"
             android:textColor="#3A75B5"
-            android:textSize="12sp"
+            android:textSize="11sp"
             app:backgroundTint="#EDF3FB"
             app:cornerRadius="4dp"
-            app:paddingEnd="4dp"
-            app:paddingStart="4dp" />
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnFiltroRecibidas"
             style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-            android:layout_width="36dp"
-            android:layout_height="match_parent"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
             android:layout_marginEnd="4dp"
-            android:layout_weight="1"
-            android:text="Recibidas"
+            android:layout_weight="1.2"
+            android:text="@string/recibidas"
             android:textAllCaps="false"
             android:textColor="#3A75B5"
-            android:textSize="12sp"
+            android:textSize="11sp"
             app:backgroundTint="#EDF3FB"
             app:cornerRadius="4dp"
-            app:paddingEnd="4dp"
-            app:paddingStart="4dp" />
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnFiltroFinalizadas"
             style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-            android:layout_width="51dp"
-            android:layout_height="51dp"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
             android:layout_marginEnd="8dp"
-            android:layout_weight="1"
-            android:text="Finalizadas"
+            android:layout_weight="1.4"
+            android:text="@string/finalizadas"
             android:textAllCaps="false"
             android:textColor="#3A75B5"
-            android:textSize="12sp"
+            android:textSize="11sp"
             app:backgroundTint="#EDF3FB"
             app:cornerRadius="4dp"
-            app:paddingEnd="4dp"
-            app:paddingStart="4dp" />
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnCerrarSesion"
             style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-            android:layout_width="65dp"
-            android:layout_height="51dp"
-            android:text="Salir"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:minWidth="60dp"
+            android:text="@string/salir"
             android:textAllCaps="false"
             android:textColor="#FFFFFF"
             android:textSize="12sp"
             android:textStyle="bold"
-            app:backgroundTint="#3A75B5"
+            app:backgroundTint="#A40202"
             app:cornerRadius="4dp"
-            app:paddingEnd="4dp"
-            app:paddingStart="4dp" />
+            android:insetTop="0dp"
+            android:insetBottom="0dp" />
     </LinearLayout>
 
     <View
         android:id="@+id/divisorLinea"
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="16dp"
+        android:alpha="0.6"
         android:background="#D1D1D1"
         app:layout_constraintTop_toBottomOf="@id/layoutFiltros" />
 
@@ -102,9 +107,12 @@
         android:id="@+id/rvAverias"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="8dp"
+        android:clipToPadding="false"
+        android:paddingBottom="16dp"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/divisorLinea" />
+        app:layout_constraintTop_toBottomOf="@id/divisorLinea"
+        tools:listitem="@layout/item_averia" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

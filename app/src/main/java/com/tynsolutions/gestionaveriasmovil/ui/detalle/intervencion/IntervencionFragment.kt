@@ -1,45 +1,49 @@
 package com.tynsolutions.gestionaveriasmovil.ui.detalle.intervencion
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.tynsolutions.gestionaveriasmovil.data.network.ApiClient
+import com.tynsolutions.gestionaveriasmovil.data.network.SessionManager
+import com.tynsolutions.gestionaveriasmovil.data.repository.AveriasRepository
 import com.tynsolutions.gestionaveriasmovil.databinding.FragmentIntervencionBinding
+import kotlinx.coroutines.launch
 
 /**
- * Controlador de la interfaz gráfica (View) para el registro de intervenciones.
- * Delega toda la lógica de validación de negocio y persistencia al [IntervencionViewModel],
- * cumpliendo con la estructura de la Fase 1 del proyecto[cite: 6].
+ * Controlador de interfaz para el registro de bitácoras técnicas.
+ * Implementa la captura de informes de intervención vinculados a una incidencia mediante
+ * el paso de parámetros seguro (Safe Args/Bundle).
  */
 class IntervencionFragment : Fragment() {
 
-    // Gestión defensiva del ViewBinding para mitigar fugas de memoria (Memory Leaks) en el ciclo de vida del Fragmento.
     private var _binding: FragmentIntervencionBinding? = null
     private val binding get() = _binding!!
 
-    // Inyección de dependencias lazy del ViewModel asociado a este Fragmento.
-    private val viewModel: IntervencionViewModel by viewModels()
+    // Recuperación persistente del identificador de la avería
+    private val idAveria: Int by lazy { arguments?.getInt(ARG_ID_AVERIA) ?: -1 }
 
-    // Estado persistido de la transacción (Identificador de enrutamiento).
-    private var averiaId: Int = -1
+    private val viewModel: IntervencionViewModel by viewModels {
+        val session = SessionManager(requireContext())
+        val repository = AveriasRepository(ApiClient.getApiService(session), session)
+        IntervencionViewModel.Factory(repository)
+    }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        // Extracción segura del payload de navegación inyectado vía Bundle.
-        arguments?.let {
-            averiaId = it.getInt("AVERIA_ID")
-        }
+    companion object {
+        private const val ARG_ID_AVERIA = "id_averia"
+        private const val TAG = "IntervencionFragment"
     }
 
     override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        // Inflado y vinculación de la jerarquía de vistas XML
         _binding = FragmentIntervencionBinding.inflate(inflater, container, false)
         return binding.root
     }
@@ -47,62 +51,78 @@ class IntervencionFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Despacho de la configuración de manejadores de eventos.
-        setupListeners()
+        validarIntegridadNavegacion()
+        configurarObservadores()
+        configurarInteracciones()
     }
 
     /**
-     * Suscribe las interacciones del usuario (clics) a las acciones correspondientes.
+     * Verifica la presencia de los parámetros obligatorios para la operación.
+     * En caso de ausencia, aborta la transacción para proteger la integridad del backend.
      */
-    private fun setupListeners() {
-        binding.btnVolver.setOnClickListener {
-            // Esto saca el fragmento actual de la pila y vuelve a la lista
+    private fun validarIntegridadNavegacion() {
+        if (idAveria == -1) {
+            Log.e(TAG, "Error de navegación: Parámetro 'id_averia' ausente.")
+            Toast.makeText(requireContext(), "Error de sistema: Referencia de avería no encontrada.", Toast.LENGTH_SHORT).show()
             parentFragmentManager.popBackStack()
         }
+    }
 
-        binding.btnGuardarIntervencion.setOnClickListener {
-            // Sanitización de la entrada del usuario (eliminación de espacios residuales)
-            val comentario = binding.etDescripcionIntervencion.text.toString().trim()
-
-            // Patrón Early Return: Validación de UI básica antes de invocar la capa lógica
-            if (comentario.isNotEmpty()) {
-
-                // Delegación del caso de uso al controlador lógico (ViewModel)
-                val exito = viewModel.guardarIntervencion(averiaId, comentario)
-
-                if (exito) {
-                    Toast.makeText(requireContext(), "Intervención guardada", Toast.LENGTH_SHORT).show()
-                    // Retorno orquestado al componente anterior en el BackStack (Detalle de Avería)
-                    parentFragmentManager.popBackStack()
-                } else {
-                    Toast.makeText(requireContext(), "Error al guardar localmente", Toast.LENGTH_SHORT).show()
+    /**
+     * Suscripción reactiva al estado de la interfaz (UI State).
+     * Garantiza que la vista refleje fielmente el estado de la transacción remota.
+     */
+    private fun configurarObservadores() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiState.collect { estado ->
+                    manejarCambioEstado(estado)
                 }
-            } else {
-                // Feedback visual de error de validación
-                Toast.makeText(requireContext(), "La descripción no puede estar vacía", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    companion object {
-        /**
-         * Patrón Factory Method.
-         * Provee una API robusta y tipada para instanciar este controlador, asegurando
-         * que la dependencia requerida (AVERIA_ID) esté presente antes de la inicialización.
-         *
-         * @param id Identificador primario de la avería.
-         * @return Instancia configurada de [IntervencionFragment].
-         */
-        fun newInstance(id: Int) = IntervencionFragment().apply {
-            arguments = Bundle().apply {
-                putInt("AVERIA_ID", id)
+    /**
+     * Orquestador visual para el feedback del operario.
+     */
+    private fun manejarCambioEstado(estado: IntervencionUiState) {
+        when (estado) {
+            is IntervencionUiState.Loading -> {
+                // Bloqueo preventivo de UI para evitar duplicidad de registros (Double-tap protection)
+                binding.btnGuardarIntervencion.isEnabled = false
+            }
+            is IntervencionUiState.Success -> {
+                Toast.makeText(requireContext(), estado.message, Toast.LENGTH_SHORT).show()
+                parentFragmentManager.popBackStack()
+            }
+            is IntervencionUiState.Error -> {
+                binding.btnGuardarIntervencion.isEnabled = true
+                Toast.makeText(requireContext(), estado.message, Toast.LENGTH_LONG).show()
+                viewModel.resetState() // Limpieza del estado de error para permitir reintentos
+            }
+            else -> Unit
+        }
+    }
+
+    /**
+     * Establece los manejadores de eventos para la interacción física del técnico.
+     */
+    private fun configurarInteracciones() {
+        binding.btnVolver.setOnClickListener { parentFragmentManager.popBackStack() }
+
+        binding.btnGuardarIntervencion.setOnClickListener {
+            val informeCuerpo = binding.etDescripcionIntervencion.text.toString().trim()
+
+            // Delegación de la lógica de guardado al ViewModel
+            if (idAveria > 0) {
+                viewModel.registrarIntervencion(idAveria, informeCuerpo)
             }
         }
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        // Destrucción explícita de referencias críticas al desmontar la vista.
+        // Prevención de Memory Leaks anulando la referencia al ViewBinding
         _binding = null
     }
 }

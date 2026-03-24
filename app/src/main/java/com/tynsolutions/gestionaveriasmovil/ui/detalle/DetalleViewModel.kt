@@ -1,81 +1,122 @@
 package com.tynsolutions.gestionaveriasmovil.ui.detalle
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
+import android.util.Log
 import androidx.lifecycle.ViewModel
-import com.tynsolutions.gestionaveriasmovil.data.local.FakeDataSource
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.tynsolutions.gestionaveriasmovil.data.local.AveriaCache
 import com.tynsolutions.gestionaveriasmovil.domain.model.Averia
+import com.tynsolutions.gestionaveriasmovil.data.repository.AveriasRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
-class DetalleViewModel : ViewModel() {
+/**
+ * Jerarquía de estados para la vista de detalle.
+ * Implementa el patrón Redux-like para garantizar una representación visual
+ * determinista basada en el estado actual del dominio.
+ */
+sealed class DetalleUiState {
+    object Loading : DetalleUiState()
+    data class Success(val averia: Averia) : DetalleUiState()
+    data class Error(val message: String) : DetalleUiState()
+    data class AccionCompletada(val message: String) : DetalleUiState()
+}
 
-    // Backing property: Estado reactivo encapsulado que representa la avería actual.
-    private val _averia = MutableLiveData<Averia>()
+/**
+ * Orquestador de lógica de presentación para la gestión profunda de incidencias.
+ * Centraliza las operaciones de lectura, sincronización y mutación de estado administrativo,
+ * garantizando la integridad de la caché local tras cada transacción exitosa.
+ */
+class DetalleViewModel(private val repository: AveriasRepository) : ViewModel() {
 
-    // Exposición inmutable del estado para que la Vista se suscriba (Observer Pattern).
-    val averia: LiveData<Averia> get() = _averia
+    private val _uiState = MutableStateFlow<DetalleUiState>(DetalleUiState.Loading)
+    val uiState: StateFlow<DetalleUiState> = _uiState.asStateFlow()
+
+    companion object {
+        private const val TAG = "DetalleViewModel"
+    }
+
+    init {
+        rehidratarDesdeCache()
+    }
 
     /**
-     * Ejecuta la consulta al origen de datos (Data Source / Repository) para obtener
-     * la entidad correspondiente al ID proporcionado.
+     * Sincroniza la entidad actual con el estado remoto del servidor.
+     * Implementa una estrategia de "Graceful Degradation": si la red falla, se mantiene
+     * el estado previo de la caché para no interrumpir el flujo del técnico.
      *
-     * @param id Identificador primario de la avería solicitada.
+     * @param id Identificador único de la avería.
      */
-    fun cargarAveria(id: Int) {
-        // En una implementación Clean Architecture, esto invocaría un UseCase (ej: GetAveriaByIdUseCase).
-        val averiaEncontrada = FakeDataSource.averias.find { it.id == id }
-
-        // Actualizamos el estado reactivo solo si la entidad existe (null safety).
-        averiaEncontrada?.let {
-            _averia.value = it
+    fun sincronizarConServidor(id: Int) {
+        viewModelScope.launch {
+            repository.getAveriaPorId(id).fold(
+                onSuccess = { averiaActualizada ->
+                    // Sincronización de la Single Source of Truth (SSoT)
+                    AveriaCache.averiaSeleccionada = averiaActualizada
+                    _uiState.value = DetalleUiState.Success(averiaActualizada)
+                },
+                onFailure = { error ->
+                    Log.w(TAG, "Fallo de sincronización para ID $id. Motivo: ${error.message}")
+                    // No sobreescribimos el estado Success si ya existe, para evitar parpadeos de error.
+                }
+            )
         }
     }
 
     /**
-     * Procesa la aceptación de la avería asignando un timestamp local (Fase 1).
-     * @param id Identificador único de la entidad a modificar.
+     * Recupera la última instantánea conocida de la avería desde la memoria volátil.
+     * Permite una carga instantánea de la UI mientras se disparan procesos de red en paralelo.
+     */
+    fun rehidratarDesdeCache() {
+        AveriaCache.averiaSeleccionada?.let {
+            _uiState.value = DetalleUiState.Success(it)
+        } ?: run {
+            _uiState.value = DetalleUiState.Error("Referencia de datos perdida. Reingrese desde el listado.")
+        }
+    }
+
+    /**
+     * Ejecuta la transición de estado a 'Recibida'.
+     * @param id Identificador de la avería.
      */
     fun aceptarAveria(id: Int) {
-        // 1. Localización de la entidad en el mock data source
-        val averia = FakeDataSource.averias.find { it.id == id }
+        realizarTransaccion { repository.aceptarAveria(id) }
+    }
 
-        averia?.let {
-            // 2. Generación de timestamp para simular la respuesta del servidor
-            val format = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
-            val timestamp = format.format(java.util.Date())
+    /**
+     * Ejecuta el cierre definitivo del ciclo de vida de la incidencia.
+     * @param id Identificador de la avería.
+     */
+    fun finalizarAveria(id: Int) {
+        realizarTransaccion { repository.finalizarAveria(id) }
+    }
 
-            // 3. Actualización de la colección local (Simulación de persistencia)
-            val index = FakeDataSource.averias.indexOf(it)
-            FakeDataSource.averias[index] = it.copy(fechaAceptacion = timestamp)
-
-            // 4. Emisión del nuevo estado a los observadores de la UI
-            _averia.value = FakeDataSource.averias[index]
+    /**
+     * Función de orden superior para estandarizar el manejo de transacciones de escritura.
+     * Reduce la duplicidad de código (DRY) y centraliza el manejo de estados de carga y error.
+     */
+    private fun realizarTransaccion(block: suspend () -> Result<String>) {
+        viewModelScope.launch {
+            _uiState.value = DetalleUiState.Loading
+            block().fold(
+                onSuccess = { _uiState.value = DetalleUiState.AccionCompletada(it) },
+                onFailure = { _uiState.value = DetalleUiState.Error(it.message ?: "Error en la transacción remota.") }
+            )
         }
     }
 
     /**
-     * CU06: Finalizar Avería.
-     * Cambia el estado de la avería a un estado terminal ("Finalizada").
-     * Esto simula la lógica del Bloque 7.3 en la Fase 1.
-     *
-     * @param averiaId El identificador de la avería que se va a cerrar.
+     * Factory de inyección de dependencias para el desacoplamiento de capas.
      */
-    fun finalizarAveria(averiaId: Int) {
-        val averia = FakeDataSource.averias.find { it.id == averiaId }
-
-        averia?.let {
-            val index = FakeDataSource.averias.indexOf(it)
-
-            // Obtenemos la fecha actual formateada (o como la use tu modelo, ej: String o Date)
-            val fechaHoy = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
-
-            // IMPORTANTE: Al poner valor a fechaFinalizacion, el estado cambia automáticamente
-            val averiaActualizada = it.copy(fechaFinalizacion = fechaHoy)
-
-            FakeDataSource.averias[index] = averiaActualizada
-
-            // Notificamos a la UI. El Observer recibirá el objeto y al leer
-            // 'estadoAveriaCalculado' verá que ahora es "Finalizada".
-            _averia.value = averiaActualizada
+    class Factory(private val repository: AveriasRepository) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(DetalleViewModel::class.java)) {
+                return DetalleViewModel(repository) as T
+            }
+            throw IllegalArgumentException("Fallo en la instanciación: Clase ViewModel incompatible.")
         }
     }
 }
