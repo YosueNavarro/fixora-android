@@ -10,11 +10,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/**
- * Jerarquía de estados inmutables para la orquestación del listado de incidencias.
- * Implementa una arquitectura de flujo de datos unidireccional (UDF) para garantizar
- * la consistencia visual y el aislamiento de la lógica de red.
- */
 sealed class ListadoUiState {
     object Loading : ListadoUiState()
     data class Success(val averias: List<Averia>) : ListadoUiState()
@@ -30,17 +25,15 @@ class ListadoViewModel(
     private val repository: AveriasRepository
 ) : ViewModel() {
 
-    // Encapsulamiento del estado reactivo: Solo el ViewModel puede mutar el flujo (Internal State).
     private val _uiState = MutableStateFlow<ListadoUiState>(ListadoUiState.Loading)
     val uiState: StateFlow<ListadoUiState> = _uiState.asStateFlow()
 
-    // Single Source of Truth (SSoT) en memoria para permitir filtrado reactivo sin latencia.
     private var cacheAverias: List<Averia> = emptyList()
 
     /**
-     * Sincroniza el listado de averías con el servidor perimetral basándose en un criterio de filtrado.
-     * La operación se ejecuta en el ámbito de vida del ViewModel (Memory Safe), cancelándose
-     * automáticamente si el técnico abandona la vista.
+     * Sincroniza el listado de averías con el servidor perimetral.
+     * Implementa sanitización de datos (Data Sanitization) para asegurar la integridad
+     * de las reglas de negocio antes de la renderización visual.
      *
      * @param tipoFiltro Criterio de segmentación ("nuevas", "en_curso", "historico").
      */
@@ -48,14 +41,23 @@ class ListadoViewModel(
         viewModelScope.launch {
             _uiState.value = ListadoUiState.Loading
 
-            // Ejecución de la consulta de dominio con gestión de resultados (Result Pattern)
             val result = repository.getAveriasAsignadas(tipoFiltro)
 
             result.fold(
                 onSuccess = { listaAverias ->
-                    // Actualización de la caché de dominio para operaciones de UI posteriores
-                    cacheAverias = listaAverias
-                    _uiState.value = ListadoUiState.Success(listaAverias)
+
+                    // ====================================================================
+                    // 🛡️ BARRERA DE DEFENSA (Zero Tolerance Policy)
+                    // Regla de Negocio: Un técnico NO puede estar asignado sin fecha.
+                    // Descartamos silenciosamente cualquier anomalía proveniente de la API.
+                    // ====================================================================
+                    val averiasValidas = listaAverias.filter { averia ->
+                        averia.fechaAsignacion != null
+                    }
+
+                    // Actualización de la memoria y la UI EXCLUSIVAMENTE con datos íntegros
+                    cacheAverias = averiasValidas
+                    _uiState.value = ListadoUiState.Success(averiasValidas)
                 },
                 onFailure = { exception ->
                     _uiState.value = ListadoUiState.Error(
