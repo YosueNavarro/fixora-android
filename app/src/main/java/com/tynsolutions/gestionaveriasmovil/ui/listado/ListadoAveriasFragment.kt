@@ -59,6 +59,7 @@ class ListadoAveriasFragment : Fragment() {
         inicializarComponentesLista()
         vincularFlujoDeDatos()
         configurarFiltrosYControles()
+        configurarRefrescoManual()
         restaurarContextoNavegacion()
     }
 
@@ -90,10 +91,12 @@ class ListadoAveriasFragment : Fragment() {
                     when (estado) {
                         is ListadoUiState.Loading -> alternarProgreso(true)
                         is ListadoUiState.Success -> {
+                            binding.swipeRefreshLayout.isRefreshing = false
                             alternarProgreso(false)
                             averiasAdapter.actualizarLista(estado.averias)
                         }
                         is ListadoUiState.Error -> {
+                            binding.swipeRefreshLayout.isRefreshing = false
                             alternarProgreso(false)
                             notificarError(estado.message)
                         }
@@ -177,6 +180,21 @@ class ListadoAveriasFragment : Fragment() {
             }
             .setCancelable(false)
             .show()
+    }
+
+    /**
+     * Configura el componente SwipeRefreshLayout para la recarga manual de datos.
+     * Implementa feedback visual (Spinning loader) personalizado con los colores corporativos.
+     */
+    private fun configurarRefrescoManual() {
+        // 1. Personalización de UI (Aplicamos el color azul de la empresa)
+        binding.swipeRefreshLayout.setColorSchemeColors(Color.parseColor("#3A75B5"))
+
+        // 2. Suscripción al evento de deslizamiento
+        binding.swipeRefreshLayout.setOnRefreshListener {
+            // Cuando el usuario tira hacia abajo, forzamos una recarga con el filtro actual
+            viewModel.cargarAverias(filtroActivo)
+        }
     }
 
     private fun alternarProgreso(visible: Boolean) {

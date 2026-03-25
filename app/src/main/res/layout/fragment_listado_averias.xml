@@ -103,16 +103,26 @@
         android:background="#D1D1D1"
         app:layout_constraintTop_toBottomOf="@id/layoutFiltros" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvAverias"
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefreshLayout"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="8dp"
-        android:clipToPadding="false"
-        android:paddingBottom="16dp"
-        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/divisorLinea"
-        tools:listitem="@layout/item_averia" />
+        app:layout_constraintTop_toBottomOf="@id/divisorLinea">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvAverias"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="8dp"
+            android:clipToPadding="false"
+            android:paddingBottom="16dp"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/divisorLinea"
+            tools:listitem="@layout/item_averia" />
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

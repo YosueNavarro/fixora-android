@@ -13,6 +13,8 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
 import com.tynsolutions.gestionaveriasmovil.R
 import com.tynsolutions.gestionaveriasmovil.data.network.ApiClient
 import com.tynsolutions.gestionaveriasmovil.data.network.SessionManager
@@ -38,7 +40,9 @@ class DetalleAveriaFragment : Fragment() {
         DetalleViewModel.Factory(repository)
     }
 
+    // Retención del estado actual para validaciones de negocio en tiempo de ejecución
     private var idAveriaActual: Int = -1
+    private var averiaEnPantalla: Averia? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -65,6 +69,7 @@ class DetalleAveriaFragment : Fragment() {
                         is DetalleUiState.Loading -> alternarInteractividad(false)
                         is DetalleUiState.Success -> {
                             idAveriaActual = estado.averia.id
+                            averiaEnPantalla = estado.averia // Sincronizamos la variable local
                             alternarInteractividad(true)
                             poblarComponentesUI(estado.averia)
                         }
@@ -89,14 +94,72 @@ class DetalleAveriaFragment : Fragment() {
             if (idAveriaActual != -1) viewModel.aceptarAveria(idAveriaActual)
         }
 
+        // Interceptamos el click directo para aplicar la regla de negocio
         binding.btnFinalizarAveria.setOnClickListener {
-            if (idAveriaActual != -1) viewModel.finalizarAveria(idAveriaActual)
+            procesarPeticionFinalizacion()
         }
 
         binding.btnRegistrarIntervencion.setOnClickListener {
             navegarARegistroIntervencion()
         }
     }
+
+    // =========================================================================
+    // REGLAS DE NEGOCIO Y SEGURIDAD (Validación de Intervenciones)
+    // =========================================================================
+
+    /**
+     * Evalúa las precondiciones de negocio antes de autorizar el cierre de la incidencia.
+     * Implementa programación defensiva para evitar peticiones inválidas al servidor.
+     */
+    private fun procesarPeticionFinalizacion() {
+        // 1. Validación Estricta: Comprobamos si el técnico ha documentado el proceso
+        if (averiaEnPantalla == null || averiaEnPantalla!!.intervenciones.isEmpty()) {
+            // Bloqueo de seguridad: No hay proceso descrito
+            notificarFaltaDeIntervencion()
+            return
+        }
+
+        // 2. Si la precondición se cumple, solicitamos confirmación explícita
+        mostrarDialogoConfirmacionFinalizar()
+    }
+
+    /**
+     * Proporciona feedback visual inmediato (Snackbar) si el técnico intenta saltarse el flujo de trabajo.
+     */
+    private fun notificarFaltaDeIntervencion() {
+        Snackbar.make(
+            binding.root,
+            "Operación denegada: Debes registrar al menos una intervención documentando el trabajo.",
+            Snackbar.LENGTH_LONG
+        ).apply {
+            setBackgroundTint(Color.parseColor("#D32F2F")) // Rojo alerta
+            setTextColor(Color.WHITE)
+            show()
+        }
+    }
+
+    /**
+     * Despliega un modal de confirmación crítica (Punto de No Retorno).
+     * Previene mutaciones de estado accidentales en la base de datos.
+     */
+    private fun mostrarDialogoConfirmacionFinalizar() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Finalizar Avería")
+            .setMessage("¿Estás seguro de que deseas marcar esta avería como finalizada?\n\nEsta acción registrará la hora actual como cierre definitivo y no podrá deshacerse.")
+            .setNegativeButton("Cancelar") { dialog, _ ->
+                dialog.dismiss() // Cierre seguro sin mutación
+            }
+            .setPositiveButton("Sí, finalizar") { _, _ ->
+                if (idAveriaActual != -1) viewModel.finalizarAveria(idAveriaActual)
+            }
+            .setCancelable(false) // Obliga al usuario a tomar una decisión explícita
+            .show()
+    }
+
+    // =========================================================================
+    // RENDERIZADO Y NAVEGACIÓN
+    // =========================================================================
 
     /**
      * Renderiza los datos de la entidad en los componentes de la vista.
@@ -135,7 +198,7 @@ class DetalleAveriaFragment : Fragment() {
                     btnFinalizarAveria.visibility = View.GONE
                     btnRegistrarIntervencion.visibility = View.GONE
                 }
-                "Recibida", "Pendiente" -> {
+                "Recibida", "Pendiente", "En curso" -> {
                     btnAceptarAveria.visibility = View.GONE
                     btnFinalizarAveria.visibility = View.VISIBLE
                     btnRegistrarIntervencion.visibility = View.VISIBLE

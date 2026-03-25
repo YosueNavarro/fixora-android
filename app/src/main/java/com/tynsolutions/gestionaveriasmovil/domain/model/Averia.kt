@@ -31,6 +31,6 @@ data class Averia(
             fechaFinalizacion != null -> "Finalizada"
             fechaAceptacion != null -> "Recibida"
             fechaAsignacion != null -> "Nueva"
-            else -> "Pendiente"
+            else -> "Nueva"
         }
 }
