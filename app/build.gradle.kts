@@ -63,4 +63,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // Interceptor de OkHttp: Útil para ver las peticiones/respuestas en el Logcat durante el desarrollo
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    // Swipe up para refrescar la lista
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 }
