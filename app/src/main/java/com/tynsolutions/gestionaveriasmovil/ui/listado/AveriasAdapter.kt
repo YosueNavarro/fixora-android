@@ -30,7 +30,7 @@ class AveriasAdapter(
         fun bind(averia: Averia) {
             with(binding) {
                 tvTituloAveria.text = averia.titulo
-                tvMaquinaria.text = averia.maquinaria
+                tvMaquinaria.text = averia.maquinaria.nombre
                 tvFecha.text = averia.fechaInforme
 
                 // Gestión de la identidad visual del estado

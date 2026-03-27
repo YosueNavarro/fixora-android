@@ -15,7 +15,7 @@ import com.tynsolutions.gestionaveriasmovil.R
 import com.tynsolutions.gestionaveriasmovil.data.local.AveriaCache
 import com.tynsolutions.gestionaveriasmovil.data.network.ApiClient
 import com.tynsolutions.gestionaveriasmovil.data.network.SessionManager
-import com.tynsolutions.gestionaveriasmovil.data.repository.AveriasRepository
+import com.tynsolutions.gestionaveriasmovil.data.repository.MaquinariaRepository // <- Importamos el nuevo Repo
 import com.tynsolutions.gestionaveriasmovil.databinding.FragmentCambiarEstadoBinding
 import kotlinx.coroutines.launch
 
@@ -35,7 +35,8 @@ class CambiarEstadoFragment : Fragment() {
      */
     private val viewModel: CambiarEstadoViewModel by viewModels {
         val session = SessionManager(requireContext())
-        val repository = AveriasRepository(ApiClient.getApiService(session), session)
+        // REFACTORIZACIÓN: Inyectamos el experto en Maquinaria, no el de Averías
+        val repository = MaquinariaRepository(ApiClient.getApiService(session))
         CambiarEstadoViewModel.Factory(repository)
     }
 
@@ -61,8 +62,8 @@ class CambiarEstadoFragment : Fragment() {
     private fun sincronizarContextoUI() {
         val averia = AveriaCache.averiaSeleccionada
         if (averia != null) {
-            // Uso de recursos formateados para cumplimiento de i18n/accesibilidad
-            binding.tvNombreMaquinaActual.text = getString(R.string.formato_nombre_maquina, averia.maquinaria)
+            // REFACTORIZACIÓN: Ahora averia.maquinaria es un objeto, leemos su .nombre
+            binding.tvNombreMaquinaActual.text = getString(R.string.formato_nombre_maquina, averia.maquinaria.nombre)
         } else {
             // Recuperación ante fallos de integridad de memoria
             Toast.makeText(requireContext(), "Fallo de integridad: Datos de sesión perdidos.", Toast.LENGTH_LONG).show()
@@ -128,10 +129,13 @@ class CambiarEstadoFragment : Fragment() {
         if (selectedId != -1) {
             val radioButton = binding.root.findViewById<RadioButton>(selectedId)
             val etiquetaEstado = radioButton.text.toString()
+            val averia = AveriaCache.averiaSeleccionada
+            if (averia == null || averia.maquinaria.id == -1) {
+                Toast.makeText(requireContext(), "Error de sistema: Identificador de máquina no válido.", Toast.LENGTH_SHORT).show()
+                return
+            }
 
-            // Extracción segura de ID de maquinaria desde el Singleton de Caché
-            val idMaquina = AveriaCache.averiaSeleccionada?.id ?: return
-            viewModel.actualizarEstadoMaquinaria(idMaquina, etiquetaEstado)
+            viewModel.actualizarEstadoMaquinaria(averia.maquinaria.id, etiquetaEstado)
         } else {
             Toast.makeText(requireContext(), "Debe seleccionar un estatus operativo válido.", Toast.LENGTH_SHORT).show()
         }

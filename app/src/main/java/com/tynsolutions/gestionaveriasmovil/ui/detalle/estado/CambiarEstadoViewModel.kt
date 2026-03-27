@@ -3,11 +3,12 @@ package com.tynsolutions.gestionaveriasmovil.ui.detalle.estado
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.tynsolutions.gestionaveriasmovil.data.repository.AveriasRepository
+import com.tynsolutions.gestionaveriasmovil.data.repository.MaquinariaRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.tynsolutions.gestionaveriasmovil.data.local.AveriaCache
 
 /**
  * Jerarquía de estados inmutables para la gestión reactiva de la interfaz.
@@ -27,7 +28,7 @@ sealed class CambiarEstadoUiState {
  * la vista (Fragment) de las reglas de persistencia del Backend.
  */
 class CambiarEstadoViewModel(
-    private val repository: AveriasRepository
+    private val repository: MaquinariaRepository // <- REFACTORIZACIÓN: SRP Cumplido
 ) : ViewModel() {
 
     // Encapsulamiento estricto: El MutableStateFlow es privado para evitar mutaciones externas
@@ -53,8 +54,21 @@ class CambiarEstadoViewModel(
             val result = repository.cambiarEstadoMaquinaria(idMaquinaria, codigoEstado)
 
             result.fold(
-                onSuccess = { _uiState.value = CambiarEstadoUiState.Success(it) },
-                onFailure = { _uiState.value = CambiarEstadoUiState.Error(it.message ?: "Fallo crítico en la sincronización remota.") }
+                onSuccess = { mensaje ->
+
+                    val averiaActual = AveriaCache.averiaSeleccionada
+                    if (averiaActual != null) {
+                        // Creamos una copia exacta de la máquina, pero con el nuevo código de estado
+                        val maquinaActualizada = averiaActual.maquinaria.copy(codigoEstado = codigoEstado)
+                        // Sobrescribimos la avería en caché con la nueva máquina
+                        AveriaCache.averiaSeleccionada = averiaActual.copy(maquinaria = maquinaActualizada)
+                    }
+
+                    _uiState.value = CambiarEstadoUiState.Success(mensaje)
+                },
+                onFailure = { error ->
+                    _uiState.value = CambiarEstadoUiState.Error(error.message ?: "Fallo crítico en la sincronización remota.")
+                }
             )
         }
     }
@@ -72,18 +86,18 @@ class CambiarEstadoViewModel(
      * Centralizar el mapeo aquí previene la dispersión de IDs mágicos (Magic Numbers) por el código.
      */
     private fun mapearTextoACodigo(texto: String): Int = when (texto) {
-        "Operativa" -> 1
-        "Averiada" -> 2
-        "En mantenimiento" -> 3
-        "Fuera de servicio" -> 4
-        else -> 2 // Fallback defensivo: 'Averiada' ante ambigüedad
+        "Operativa" -> 801
+        "Averiada" -> 802
+        "En mantenimiento" -> 803
+        "Fuera de servicio" -> 804
+        else -> 802 // Fallback defensivo: 'Averiada' ante ambigüedad o error tipográfico
     }
 
     /**
      * Factory de inyección de dependencias.
-     * Provee el repositorio necesario manteniendo el desacoplamiento entre capas.
+     * Provee el repositorio especializado manteniendo el desacoplamiento entre capas.
      */
-    class Factory(private val repository: AveriasRepository) : ViewModelProvider.Factory {
+    class Factory(private val repository: MaquinariaRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(CambiarEstadoViewModel::class.java)) {

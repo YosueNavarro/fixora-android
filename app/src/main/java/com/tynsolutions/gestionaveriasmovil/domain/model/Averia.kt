@@ -12,7 +12,7 @@ data class Averia(
     val id: Int,
     val titulo: String,
     val descripcion: String,
-    val maquinaria: String,
+    val maquinaria: Maquinaria,
     val fechaInforme: String,
     val fechaAsignacion: String?,
     val fechaAceptacion: String?,

@@ -33,9 +33,6 @@ data class AveriaItemDTO(
 
     /*
      * USO DE JsonElement: Estrategia defensiva ante mutaciones de formato de fecha.
-     * Permite deserializar de forma segura tanto cadenas ISO-8601 ("2026-03-23T12:52:16")
-     * como arrays numéricos serializados por Jackson ([2026, 3, 23, 12, 52, 16]).
-     * Su parseo definitivo se delega a la capa de Mappers.
      */
     @SerializedName("fechaAsigTecnico") val fechaAsigTecnico: JsonElement?,
     @SerializedName("fechaAcepTecnico") val fechaAcepTecnico: JsonElement?,
@@ -47,26 +44,16 @@ data class AveriaItemDTO(
     // DTOs anidados: Soportan tanto la entidad completa (MaquinariaResumen)
     // como su identificador relacional, dependiendo de la profundidad del endpoint.
     @SerializedName("maquinaria") val maquinaria: MaquinariaResumen? = null,
-    @SerializedName("maquinariaFK") val maquinariaId: Int? = null,
+    @SerializedName(value = "maquinariaFK", alternate = ["codigoMaquinaria", "idMaquinaria"])
+    val maquinariaId: Int? = null,
 
     @SerializedName("tipoAveria") val tipoAveria: TipoAveriaResumenDTO? = null,
     @SerializedName("tipoAveriaFK") val tipoAveriaId: Int? = null
 )
 
 /**
- * DTOs anidados para representación de relaciones internas.
+ * DTOs anidados para representación de relaciones internas (Mantenidos en su contexto).
  */
-data class MaquinariaResumen(
-    @SerializedName("id") val id: Int,
-    @SerializedName("nombre") val nombre: String?,
-    @SerializedName("estado") val estado: EstadoMaquinariaResumen? = null
-)
-
-data class EstadoMaquinariaResumen(
-    @SerializedName("codigoEstado") val codigo: Int,
-    @SerializedName("descripcionEstado") val descripcion: String
-)
-
 data class TipoAveriaResumenDTO(
     @SerializedName("id") val id: Int,
     @SerializedName("descripcion") val descripcion: String?

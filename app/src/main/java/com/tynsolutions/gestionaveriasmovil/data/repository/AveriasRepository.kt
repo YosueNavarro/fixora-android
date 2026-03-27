@@ -150,28 +150,4 @@ class AveriasRepository(
             Result.failure(Exception("Timeout de red al ejecutar la orden de finalización."))
         }
     }
-
-    /**
-     * Sincronización de estado físico (PUT): Actualiza el estatus operativo del hardware.
-     *
-     * @param idMaquinaria Identificador del equipo físico.
-     * @param codigoEstado Código de catálogo representativo del nuevo estado.
-     * @return [Result] confirmando la mutación en base de datos.
-     */
-    suspend fun cambiarEstadoMaquinaria(idMaquinaria: Int, codigoEstado: Int): Result<String> {
-        return try {
-            val request = CambiarEstadoMaquinaRequest(codigoEstado)
-            val response = apiService.cambiarEstadoMaquina(idMaquinaria, request)
-
-            if (response.isSuccessful) {
-                Result.success("El estado de la maquinaria ha sido sincronizado correctamente.")
-            } else {
-                Log.w(TAG, "Denegación de mutación de estado de maquinaria. HTTP: ${response.code()}")
-                Result.failure(Exception("Operación denegada por el servidor. Código HTTP: ${response.code()}"))
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Caída de red sincronizando maquinaria", e)
-            Result.failure(Exception("Error de conectividad al intentar sincronizar el estado de la máquina."))
-        }
-    }
 }

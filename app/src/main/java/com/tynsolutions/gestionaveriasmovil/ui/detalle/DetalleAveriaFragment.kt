@@ -94,7 +94,7 @@ class DetalleAveriaFragment : Fragment() {
             if (idAveriaActual != -1) viewModel.aceptarAveria(idAveriaActual)
         }
 
-        // Interceptamos el click directo para aplicar la regla de negocio
+        // Interceptamos el click directo para aplicar las reglas de negocio en cascada
         binding.btnFinalizarAveria.setOnClickListener {
             procesarPeticionFinalizacion()
         }
@@ -102,10 +102,14 @@ class DetalleAveriaFragment : Fragment() {
         binding.btnRegistrarIntervencion.setOnClickListener {
             navegarARegistroIntervencion()
         }
+
+        binding.btnCambiarEstadoMaquina.setOnClickListener {
+            navegarACambiarEstadoMaquina()
+        }
     }
 
     // =========================================================================
-    // REGLAS DE NEGOCIO Y SEGURIDAD (Validación de Intervenciones)
+    // REGLAS DE NEGOCIO Y SEGURIDAD (Validación de Cierre)
     // =========================================================================
 
     /**
@@ -113,19 +117,29 @@ class DetalleAveriaFragment : Fragment() {
      * Implementa programación defensiva para evitar peticiones inválidas al servidor.
      */
     private fun procesarPeticionFinalizacion() {
+        val averia = averiaEnPantalla ?: return
+
         // 1. Validación Estricta: Comprobamos si el técnico ha documentado el proceso
-        if (averiaEnPantalla == null || averiaEnPantalla!!.intervenciones.isEmpty()) {
+        if (averia.intervenciones.isEmpty()) {
             // Bloqueo de seguridad: No hay proceso descrito
             notificarFaltaDeIntervencion()
             return
         }
 
-        // 2. Si la precondición se cumple, solicitamos confirmación explícita
+        // 2. Validación de Hardware: Comprobamos el estatus de la máquina (Rango 800)
+        // Solo se permite finalizar si la máquina está Operativa (801) o Fuera de servicio (804)
+        val estadoMaquina = averia.maquinaria.codigoEstado
+        if (estadoMaquina != 801 && estadoMaquina != 804) {
+            notificarFaltaCambioEstadoMaquina()
+            return
+        }
+
+        // 3. Si las precondiciones se cumplen, solicitamos confirmación explícita
         mostrarDialogoConfirmacionFinalizar()
     }
 
     /**
-     * Proporciona feedback visual inmediato (Snackbar) si el técnico intenta saltarse el flujo de trabajo.
+     * Proporciona feedback visual inmediato (Snackbar rojo) si falta el parte de trabajo.
      */
     private fun notificarFaltaDeIntervencion() {
         Snackbar.make(
@@ -134,6 +148,21 @@ class DetalleAveriaFragment : Fragment() {
             Snackbar.LENGTH_LONG
         ).apply {
             setBackgroundTint(Color.parseColor("#D32F2F")) // Rojo alerta
+            setTextColor(Color.WHITE)
+            show()
+        }
+    }
+
+    /**
+     * Proporciona feedback visual inmediato (Snackbar naranja) si falta el estado de la máquina.
+     */
+    private fun notificarFaltaCambioEstadoMaquina() {
+        Snackbar.make(
+            binding.root,
+            "Operación denegada: Debes cambiar el estado de la máquina a 'Operativa' o 'Fuera de servicio' antes de finalizar.",
+            Snackbar.LENGTH_LONG
+        ).apply {
+            setBackgroundTint(Color.parseColor("#FF9800")) // Naranja advertencia
             setTextColor(Color.WHITE)
             show()
         }
@@ -168,13 +197,15 @@ class DetalleAveriaFragment : Fragment() {
     private fun poblarComponentesUI(averia: Averia) {
         with(binding) {
             tvTituloDetalle.text = averia.titulo
-            tvMaquinariaDetalle.text = averia.maquinaria
+
+            val textoEstado = obtenerDescripcionEstadoMaquina(averia.maquinaria.codigoEstado)
+            tvMaquinariaDetalle.text = "${averia.maquinaria.nombre} [$textoEstado]"
+
             tvFechaAsignacionDetalle.text = getString(R.string.formato_fecha_asignacion, averia.fechaAsignacion ?: "Pendiente")
             tvDescripcionDetalle.text = averia.descripcion
 
             aplicarEstiloEstado(tvEstadoAveriaDetalle, averia.estadoAveriaCalculado)
 
-            // Gestión del historial de intervenciones
             val tieneIntervenciones = averia.intervenciones.isNotEmpty()
             tvIntervencionesLabel.visibility = if (tieneIntervenciones) View.VISIBLE else View.GONE
             tvIntervencionesLista.visibility = if (tieneIntervenciones) View.VISIBLE else View.GONE
@@ -197,16 +228,19 @@ class DetalleAveriaFragment : Fragment() {
                     btnAceptarAveria.visibility = View.VISIBLE
                     btnFinalizarAveria.visibility = View.GONE
                     btnRegistrarIntervencion.visibility = View.GONE
+                    btnCambiarEstadoMaquina.visibility = View.GONE
                 }
                 "Recibida", "Pendiente", "En curso" -> {
                     btnAceptarAveria.visibility = View.GONE
                     btnFinalizarAveria.visibility = View.VISIBLE
                     btnRegistrarIntervencion.visibility = View.VISIBLE
+                    btnCambiarEstadoMaquina.visibility = View.VISIBLE
                 }
                 "Finalizada" -> {
                     btnAceptarAveria.visibility = View.GONE
                     btnFinalizarAveria.visibility = View.GONE
                     btnRegistrarIntervencion.visibility = View.GONE
+                    btnCambiarEstadoMaquina.visibility = View.GONE
                 }
             }
         }
@@ -244,9 +278,23 @@ class DetalleAveriaFragment : Fragment() {
             .commit()
     }
 
+    /**
+     * Orquesta la transición hacia el flujo de mutación de estado del hardware.
+     */
+    private fun navegarACambiarEstadoMaquina() {
+        val fragment = com.tynsolutions.gestionaveriasmovil.ui.detalle.estado.CambiarEstadoFragment()
+
+        parentFragmentManager.beginTransaction()
+            .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
+            .replace(R.id.main_container, fragment)
+            .addToBackStack(null)
+            .commit()
+    }
+
     private fun alternarInteractividad(activado: Boolean) {
         binding.btnAceptarAveria.isEnabled = activado
         binding.btnFinalizarAveria.isEnabled = activado
+        binding.btnCambiarEstadoMaquina.isEnabled = activado
     }
 
     private fun procesarEventoFinalizacion(mensaje: String) {
@@ -256,6 +304,17 @@ class DetalleAveriaFragment : Fragment() {
         } else {
             viewModel.sincronizarConServidor(idAveriaActual)
         }
+    }
+
+    /**
+     * Diccionario inverso: Transforma el código de catálogo numérico en texto legible para la UI.
+     */
+    private fun obtenerDescripcionEstadoMaquina(codigo: Int): String = when (codigo) {
+        801 -> "Operativa"
+        802 -> "Averiada"
+        803 -> "En mantenimiento"
+        804 -> "Fuera de servicio"
+        else -> "Estado desconocido"
     }
 
     override fun onResume() {
