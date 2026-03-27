@@ -142,13 +142,21 @@ class DetalleAveriaFragment : Fragment() {
      * Proporciona feedback visual inmediato (Snackbar rojo) si falta el parte de trabajo.
      */
     private fun notificarFaltaDeIntervencion() {
-        Snackbar.make(
+        val snackbar = Snackbar.make(
             binding.root,
             "Operación denegada: Debes registrar al menos una intervención documentando el trabajo.",
-            Snackbar.LENGTH_LONG
-        ).apply {
+            Snackbar.LENGTH_INDEFINITE // Mantiene el aviso fijo
+        )
+
+        snackbar.apply {
             setBackgroundTint(Color.parseColor("#D32F2F")) // Rojo alerta
             setTextColor(Color.WHITE)
+            setActionTextColor(Color.WHITE)
+            setAction("OK") { dismiss() } // Botón explícito para cerrar
+
+            // Permite cerrar el aviso tocando en cualquier parte de la barra roja
+            view.setOnClickListener { dismiss() }
+
             show()
         }
     }
@@ -157,13 +165,21 @@ class DetalleAveriaFragment : Fragment() {
      * Proporciona feedback visual inmediato (Snackbar naranja) si falta el estado de la máquina.
      */
     private fun notificarFaltaCambioEstadoMaquina() {
-        Snackbar.make(
+        val snackbar = Snackbar.make(
             binding.root,
             "Operación denegada: Debes cambiar el estado de la máquina a 'Operativa' o 'Fuera de servicio' antes de finalizar.",
-            Snackbar.LENGTH_LONG
-        ).apply {
+            Snackbar.LENGTH_INDEFINITE // Mantiene el aviso fijo
+        )
+
+        snackbar.apply {
             setBackgroundTint(Color.parseColor("#FF9800")) // Naranja advertencia
             setTextColor(Color.WHITE)
+            setActionTextColor(Color.WHITE)
+            setAction("OK") { dismiss() } // Botón explícito para cerrar
+
+            // Permite cerrar el aviso tocando en cualquier parte de la barra naranja
+            view.setOnClickListener { dismiss() }
+
             show()
         }
     }
