@@ -201,7 +201,27 @@ class DetalleAveriaFragment : Fragment() {
             val textoEstado = obtenerDescripcionEstadoMaquina(averia.maquinaria.codigoEstado)
             tvMaquinariaDetalle.text = "${averia.maquinaria.nombre} [$textoEstado]"
 
+            // 1. Fecha de Asignación (Siempre visible, con fallback si no existe)
             tvFechaAsignacionDetalle.text = getString(R.string.formato_fecha_asignacion, averia.fechaAsignacion ?: "Pendiente")
+
+            // 2. Fecha de Aceptación (Condicional)
+            if (averia.fechaAceptacion != null) {
+                // Nota: Asegúrate de tener este ID en tu XML del detalle
+                tvFechaAceptacionDetalle.visibility = View.VISIBLE
+                tvFechaAceptacionDetalle.text = "Aceptada el: ${averia.fechaAceptacion}"
+            } else {
+                tvFechaAceptacionDetalle.visibility = View.GONE
+            }
+
+            // 3. Fecha de Finalización (Condicional)
+            if (averia.fechaFinalizacion != null) {
+                // Nota: Asegúrate de tener este ID en tu XML del detalle
+                tvFechaFinalizacionDetalle.visibility = View.VISIBLE
+                tvFechaFinalizacionDetalle.text = "Finalizada el: ${averia.fechaFinalizacion}"
+            } else {
+                tvFechaFinalizacionDetalle.visibility = View.GONE
+            }
+
             tvDescripcionDetalle.text = averia.descripcion
 
             aplicarEstiloEstado(tvEstadoAveriaDetalle, averia.estadoAveriaCalculado)

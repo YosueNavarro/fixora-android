@@ -31,7 +31,16 @@ class AveriasAdapter(
             with(binding) {
                 tvTituloAveria.text = averia.titulo
                 tvMaquinaria.text = averia.maquinaria.nombre
-                tvFecha.text = averia.fechaInforme
+
+                // Fecha contextual según el ciclo de vida de la incidencia
+                val textoFecha = when (averia.estadoAveriaCalculado.lowercase()) {
+                    "nueva" -> "Asignada el: ${averia.fechaAsignacion ?: "Pendiente"}"
+                    "recibida", "en curso", "pendiente" -> "Aceptada el: ${averia.fechaAceptacion ?: averia.fechaAsignacion ?: "Desconocida"}"
+                    "finalizada" -> "Finalizada el: ${averia.fechaFinalizacion ?: "Desconocida"}"
+                    else -> averia.fechaInforme
+                }
+
+                tvFecha.text = textoFecha
 
                 // Gestión de la identidad visual del estado
                 configurarBadgeEstado(averia.estadoAveriaCalculado)
