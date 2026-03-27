@@ -55,12 +55,14 @@ class CambiarEstadoViewModel(
 
             result.fold(
                 onSuccess = { mensaje ->
+                    // 1. Auditoría In-Memory: Registramos el cambio en el diccionario global
+                    // Esto garantiza que el estado sobreviva aunque el listado sobrescriba la avería
+                    AveriaCache.estadoMaquinasGlobal[idMaquinaria] = codigoEstado
 
+                    // 2. Actualización en tiempo real de la entidad seleccionada
                     val averiaActual = AveriaCache.averiaSeleccionada
                     if (averiaActual != null) {
-                        // Creamos una copia exacta de la máquina, pero con el nuevo código de estado
                         val maquinaActualizada = averiaActual.maquinaria.copy(codigoEstado = codigoEstado)
-                        // Sobrescribimos la avería en caché con la nueva máquina
                         AveriaCache.averiaSeleccionada = averiaActual.copy(maquinaria = maquinaActualizada)
                     }
 

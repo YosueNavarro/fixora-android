@@ -59,7 +59,7 @@ class DetalleViewModel(private val repository: AveriasRepository) : ViewModel() 
                 },
                 onFailure = { error ->
                     Log.w(TAG, "Fallo de sincronización para ID $id. Motivo: ${error.message}")
-                    // No sobreescribimos el estado Success si ya existe, para evitar parpadeos de error.
+                    rehidratarDesdeCache()
                 }
             )
         }
@@ -70,8 +70,23 @@ class DetalleViewModel(private val repository: AveriasRepository) : ViewModel() 
      * Permite una carga instantánea de la UI mientras se disparan procesos de red en paralelo.
      */
     fun rehidratarDesdeCache() {
-        AveriaCache.averiaSeleccionada?.let {
-            _uiState.value = DetalleUiState.Success(it)
+        AveriaCache.averiaSeleccionada?.let { averia ->
+            // Búsqueda en caché L1 del último estado conocido para este hardware
+            val estadoHistorico = AveriaCache.estadoMaquinasGlobal[averia.maquinaria.id]
+
+            // Reconciliación: Si tenemos un registro histórico y el objeto actual viene
+            // purgado del servidor (código 0) o con el valor por defecto erróneo, lo restauramos.
+            val averiaReconciliada = if (estadoHistorico != null && (averia.maquinaria.codigoEstado == 0 || averia.maquinaria.codigoEstado == 802)) {
+                val maqRestaurada = averia.maquinaria.copy(codigoEstado = estadoHistorico)
+                averia.copy(maquinaria = maqRestaurada)
+            } else {
+                averia // El estado es válido, no requiere parcheo
+            }
+
+            // Actualizamos la SSoT con los datos ya parcheados y notificamos a la UI
+            AveriaCache.averiaSeleccionada = averiaReconciliada
+            _uiState.value = DetalleUiState.Success(averiaReconciliada)
+
         } ?: run {
             _uiState.value = DetalleUiState.Error("Referencia de datos perdida. Reingrese desde el listado.")
         }

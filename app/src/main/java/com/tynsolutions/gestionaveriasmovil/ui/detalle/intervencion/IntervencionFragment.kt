@@ -11,6 +11,7 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.tynsolutions.gestionaveriasmovil.data.local.AveriaCache // Importación crítica para la mutación de estado local
 import com.tynsolutions.gestionaveriasmovil.data.network.ApiClient
 import com.tynsolutions.gestionaveriasmovil.data.network.SessionManager
 import com.tynsolutions.gestionaveriasmovil.data.repository.AveriasRepository
@@ -18,20 +19,22 @@ import com.tynsolutions.gestionaveriasmovil.databinding.FragmentIntervencionBind
 import kotlinx.coroutines.launch
 
 /**
- * Controlador de interfaz para el registro de bitácoras técnicas.
- * Implementa la captura de informes de intervención vinculados a una incidencia mediante
- * el paso de parámetros seguro (Safe Args/Bundle).
+ * Controlador de vista (UI Controller) responsable del registro de bitácoras técnicas.
+ * Implementa un patrón de actualización optimista (Optimistic UI) para aislar al cliente
+ * de posibles inconsistencias en el contrato de red del backend (ej. fallos de parseo de fechas).
  */
 class IntervencionFragment : Fragment() {
 
     private var _binding: FragmentIntervencionBinding? = null
+    // Delegado de acceso seguro a la vista. Solo válido entre onCreateView y onDestroyView.
     private val binding get() = _binding!!
 
-    // Recuperación persistente del identificador de la avería
+    // Resolución perezosa (Lazy) del identificador de dominio. Mitiga inicializaciones prematuras.
     private val idAveria: Int by lazy { arguments?.getInt(ARG_ID_AVERIA) ?: -1 }
 
     private val viewModel: IntervencionViewModel by viewModels {
         val session = SessionManager(requireContext())
+        // Inyección de dependencias manual (Locator Pattern) para el repositorio de red
         val repository = AveriasRepository(ApiClient.getApiService(session), session)
         IntervencionViewModel.Factory(repository)
     }
@@ -57,20 +60,21 @@ class IntervencionFragment : Fragment() {
     }
 
     /**
-     * Verifica la presencia de los parámetros obligatorios para la operación.
-     * En caso de ausencia, aborta la transacción para proteger la integridad del backend.
+     * Auditoría de precondiciones de navegación.
+     * Previene operaciones de mutación huérfanas asegurando la existencia de la FK (idAveria).
      */
     private fun validarIntegridadNavegacion() {
         if (idAveria == -1) {
-            Log.e(TAG, "Error de navegación: Parámetro 'id_averia' ausente.")
-            Toast.makeText(requireContext(), "Error de sistema: Referencia de avería no encontrada.", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "Violación de precondición: Parámetro 'id_averia' ausente o nulo.")
+            Toast.makeText(requireContext(), "Error de integridad: Identificador de incidencia no válido.", Toast.LENGTH_SHORT).show()
             parentFragmentManager.popBackStack()
         }
     }
 
     /**
-     * Suscripción reactiva al estado de la interfaz (UI State).
-     * Garantiza que la vista refleje fielmente el estado de la transacción remota.
+     * Establece la suscripción al pipeline de estados emitido por el ViewModel.
+     * Utiliza 'repeatOnLifecycle' para garantizar la recolección segura (Lifecycle-aware)
+     * y evitar fugas de memoria o crashes en background.
      */
     private fun configurarObservadores() {
         viewLifecycleOwner.lifecycleScope.launch {
@@ -83,29 +87,50 @@ class IntervencionFragment : Fragment() {
     }
 
     /**
-     * Orquestador visual para el feedback del operario.
+     * Orquesta las transiciones de la máquina de estados visual.
+     * Implementa la estrategia de resiliencia de caché tras la confirmación del servidor.
      */
     private fun manejarCambioEstado(estado: IntervencionUiState) {
         when (estado) {
             is IntervencionUiState.Loading -> {
-                // Bloqueo preventivo de UI para evitar duplicidad de registros (Double-tap protection)
+                // Prevención activa de concurrencia: Bloqueo de doble inserción accidental
                 binding.btnGuardarIntervencion.isEnabled = false
             }
             is IntervencionUiState.Success -> {
+                // =========================================================================
+                // ACTUALIZACIÓN OPTIMISTA DE CACHÉ (Optimistic UI Update)
+                // =========================================================================
+                // Al recibir el HTTP 200 OK, inyectamos el payload directamente en la memoria
+                // RAM (AveriaCache) para compensar el fallo de deserialización del endpoint GET.
+                val textoIntervencion = binding.etDescripcionIntervencion.text.toString().trim()
+                val averiaActual = AveriaCache.averiaSeleccionada
+
+                if (averiaActual != null && textoIntervencion.isNotEmpty()) {
+                    // Mantenemos la inmutabilidad de la Data Class clonando la colección
+                    val listaActualizada = averiaActual.intervenciones.toMutableList()
+                    listaActualizada.add(textoIntervencion)
+
+                    // Sobrescribimos el Singleton local con el estado mutado
+                    AveriaCache.averiaSeleccionada = averiaActual.copy(intervenciones = listaActualizada)
+                    Log.i(TAG, "Caché de L1 mutada exitosamente. Elementos actuales: ${listaActualizada.size}")
+                }
+                // =========================================================================
+
                 Toast.makeText(requireContext(), estado.message, Toast.LENGTH_SHORT).show()
-                parentFragmentManager.popBackStack()
+                parentFragmentManager.popBackStack() // Retorno al contexto padre (DetalleAveria)
             }
             is IntervencionUiState.Error -> {
+                // Liberación del cerrojo de UI para permitir reintentos manuales tras fallo de red
                 binding.btnGuardarIntervencion.isEnabled = true
                 Toast.makeText(requireContext(), estado.message, Toast.LENGTH_LONG).show()
-                viewModel.resetState() // Limpieza del estado de error para permitir reintentos
+                viewModel.resetState() // Purga del estado transitorio
             }
-            else -> Unit
+            else -> Unit // No-op para estados iniciales o inactivos
         }
     }
 
     /**
-     * Establece los manejadores de eventos para la interacción física del técnico.
+     * Vincula las acciones del usuario (inputs) con la capa de presentación (ViewModel).
      */
     private fun configurarInteracciones() {
         binding.btnVolver.setOnClickListener { parentFragmentManager.popBackStack() }
@@ -113,7 +138,12 @@ class IntervencionFragment : Fragment() {
         binding.btnGuardarIntervencion.setOnClickListener {
             val informeCuerpo = binding.etDescripcionIntervencion.text.toString().trim()
 
-            // Delegación de la lógica de guardado al ViewModel
+            if (informeCuerpo.isEmpty()) {
+                binding.etDescripcionIntervencion.error = "El informe técnico no puede estar vacío."
+                return@setOnClickListener
+            }
+
+            // Despacho de la orden de persistencia hacia la capa de datos
             if (idAveria > 0) {
                 viewModel.registrarIntervencion(idAveria, informeCuerpo)
             }
@@ -122,7 +152,7 @@ class IntervencionFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        // Prevención de Memory Leaks anulando la referencia al ViewBinding
+        // Destrucción obligatoria del ViewBinding para evitar retenciones de memoria (Memory Leaks)
         _binding = null
     }
 }
