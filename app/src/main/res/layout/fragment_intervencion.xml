@@ -58,12 +58,38 @@
                     android:alpha="0.4"
                     android:background="#D1D1D1" />
 
+                <TextView
+                    android:id="@+id/tvIntervencionesLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="Historial de intervenciones:"
+                    android:textColor="#000000"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:visibility="gone"
+                    tools:visibility="visible" />
+
+                <TextView
+                    android:id="@+id/tvIntervencionesLista"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="#FFFFFF"
+                    android:padding="12dp"
+                    android:textColor="#000000"
+                    android:textSize="14sp"
+                    android:lineSpacingExtra="4dp"
+                    android:visibility="gone"
+                    tools:text="- Ajuste de parámetros en panel CNC.\n- Limpieza de filtros de refrigerante."
+                    tools:visibility="visible" />
+
                 <com.google.android.material.textfield.TextInputLayout
                     style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="24dp"
-                    android:hint="Describa el procedimiento técnico"
+                    android:hint="Describa el nuevo procedimiento técnico"
                     app:boxCornerRadiusBottomEnd="8dp"
                     app:boxCornerRadiusBottomStart="8dp"
                     app:boxCornerRadiusTopEnd="8dp"
@@ -76,7 +102,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:gravity="top"
-                        android:inputType="textMultiLine"
+                        android:inputType="text|textMultiLine|textCapSentences|textAutoCorrect"
                         android:minLines="6"
                         android:textColor="#333333"
                         android:textSize="16sp" />

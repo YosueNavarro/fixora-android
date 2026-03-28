@@ -11,8 +11,9 @@ $servidor = "localhost";
 $averia = "root"; // Usuario por defecto de XAMPP
 $password = "";    // Contraseña por defecto (vacía)
 $base_datos = "gestiondeaveriatynsolution";
+$puerto = 3306;
 
-$conexion = new mysqli($servidor, $averia, $password, $base_datos);
+$conexion = new mysqli($servidor, $averia, $password, $base_datos, $puerto);
 
 // Verificar si hay error
 if ($conexion->connect_error) {

@@ -3,6 +3,7 @@ package com.tynsolutions.gestionaveriasmovil.data.network
 import com.tynsolutions.gestionaveriasmovil.data.network.dto.AveriaDetalleResponse
 import com.tynsolutions.gestionaveriasmovil.data.network.dto.AveriaTecnicoResponse
 import com.tynsolutions.gestionaveriasmovil.data.network.dto.CambiarEstadoMaquinaRequest
+import com.tynsolutions.gestionaveriasmovil.data.network.dto.CambiarEstadoMaquinaResponse
 import com.tynsolutions.gestionaveriasmovil.data.network.dto.IntervencionRequestDTO
 import com.tynsolutions.gestionaveriasmovil.data.network.dto.LoginRequest
 import com.tynsolutions.gestionaveriasmovil.data.network.dto.LoginResponse
@@ -97,5 +98,5 @@ interface ApiService {
     suspend fun cambiarEstadoMaquina(
         @Path("id") idMaquinaria: Int,
         @Body request: CambiarEstadoMaquinaRequest
-    ): Response<Map<String, String>>
+    ): Response<CambiarEstadoMaquinaResponse>
 }

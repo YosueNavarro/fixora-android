@@ -16,7 +16,9 @@ object ApiClient {
     // Configuración del entorno (Dev/Localhost)
     // NOTA DE SEGURIDAD CRÍTICA: En un entorno de producción real, este endpoint debe
     // migrar estrictamente a HTTPS para evitar ataques MITM (Man-in-the-Middle).
-    private const val BASE_URL = "http://10.208.136.89:9090/api/"
+
+    // Cambiar la IP según la que tenga el servidor:
+    private const val BASE_URL = "http://10.208.137.26:9090/api/"
 
     // La anotación @Volatile garantiza que los cambios en esta variable sean visibles
     // inmediatamente por todos los hilos concurrentes.

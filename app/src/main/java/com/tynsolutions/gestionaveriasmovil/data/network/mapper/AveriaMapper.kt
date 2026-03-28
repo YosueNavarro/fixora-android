@@ -4,6 +4,7 @@ import com.google.gson.JsonElement
 import com.tynsolutions.gestionaveriasmovil.data.network.dto.AveriaItemDTO
 import com.tynsolutions.gestionaveriasmovil.domain.model.Averia
 import com.tynsolutions.gestionaveriasmovil.data.local.AveriaCache
+import com.tynsolutions.gestionaveriasmovil.domain.model.Maquinaria
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -22,7 +23,13 @@ fun AveriaItemDTO.toDomain(): Averia {
         // Fallback en cascada: Prioriza datos nuevos de red -> Datos cacheados -> Valores por defecto seguros.
         titulo = this.tipoAveria?.descripcion ?: cacheActiva?.titulo ?: "Incidencia #${this.id}",
         descripcion = this.descripcionAveria ?: cacheActiva?.descripcion ?: "Sin descripción proporcionada",
-        maquinaria = this.maquinaria?.nombre ?: cacheActiva?.maquinaria ?: "Maquinaria sin especificar",
+
+        maquinaria = when {
+            this.maquinaria != null -> MaquinariaMapper.toDomain(this.maquinaria, null)
+            this.maquinariaId != null && this.maquinariaId > 0 -> MaquinariaMapper.toDomain(null, this.maquinariaId)
+            cacheActiva?.maquinaria != null -> cacheActiva.maquinaria
+            else -> Maquinaria(-1, "Máquina no especificada")
+        },
 
         fechaInforme = extraerFechaSegura(this.fechaAsigTecnico) ?: cacheActiva?.fechaInforme ?: "Pendiente de asignación",
         fechaAsignacion = extraerFechaSegura(this.fechaAsigTecnico),
@@ -64,7 +71,8 @@ private fun extraerFechaSegura(jsonElement: JsonElement?): String? {
         } else {
             // Escenario B: Deserialización de String ISO-8601 o SQL Timestamp ("2026-03-24 13:31:23.0")
             val textoOriginal = jsonElement.asString
-            if (textoOriginal.isBlank()) return null
+
+            if (textoOriginal.isBlank() || textoOriginal.startsWith("0000-00-00")) return null
 
             // Sanitización del payload: Estandarización a ISO y truncado de milisegundos
             val fechaLimpia = textoOriginal.replace(" ", "T").split(".")[0]
