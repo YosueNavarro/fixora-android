@@ -61,6 +61,25 @@ class ListadoAveriasFragment : Fragment() {
         configurarFiltrosYControles()
         configurarRefrescoManual()
         restaurarContextoNavegacion()
+        configurarBuzonNavegacion() // <- Activamos la escucha de redirecciones dinámicas
+    }
+
+    /**
+     * Intercepta directivas de navegación (Intents) emitidas por Fragmentos hijos.
+     * Actúa como receptor del Fragment Result API para reubicar al usuario en la
+     * pestaña correcta tras una mutación de estado en el Detalle.
+     */
+    private fun configurarBuzonNavegacion() {
+        parentFragmentManager.setFragmentResultListener("request_cambio_seccion", viewLifecycleOwner) { _, bundle ->
+            val destino = bundle.getString("destino")
+
+            // Enrutamiento dinámico simulando la interacción del usuario
+            when (destino) {
+                "nuevas" -> ejecutarFiltrado("nuevas", binding.btnFiltroNuevas)
+                "recibidas" -> ejecutarFiltrado("en_curso", binding.btnFiltroRecibidas)
+                "finalizadas" -> ejecutarFiltrado("historico", binding.btnFiltroFinalizadas)
+            }
+        }
     }
 
     /**
