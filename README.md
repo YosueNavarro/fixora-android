@@ -35,8 +35,8 @@ Este cliente móvil depende de una API REST independiente respaldada por una bas
 
 ## Documentación de Interfaz (UI)
 
-<img width="447" height="789" alt="imagen" src="https://github.com/user-attachments/assets/8d269511-f4e5-4279-b2c2-2bbde67c7951" />
-
-<img width="463" height="730" alt="imagen" src="https://github.com/user-attachments/assets/d6f7eded-8b10-4c9a-a5f8-065db0b17759" />
-
-<img width="496" height="806" alt="imagen" src="https://github.com/user-attachments/assets/23c09e5c-98be-4445-b62c-dffd8a2588f5" />
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/8d269511-f4e5-4279-b2c2-2bbde67c7951" width="250" alt="Interfaz de Autenticación">
+  <img src="https://github.com/user-attachments/assets/d6f7eded-8b10-4c9a-a5f8-065db0b17759" width="250" alt="Panel de Averías Asignadas">
+  <img src="https://github.com/user-attachments/assets/23c09e5c-98be-4445-b62c-dffd8a2588f5" width="250" alt="Registro de Intervenciones">
+</div>
